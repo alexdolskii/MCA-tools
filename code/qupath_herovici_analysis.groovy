@@ -2,7 +2,7 @@
  * QuPath -> internal ImageJ/Fiji -> Colour Deconvolution2
  * Complete Herovici annotation export and analysis workflow.
  *
- * Version 1.3.2
+ * Version 1
  *
  * Analysis logic intentionally preserved from the original two-step workflow:
  *   1. Export each QuPath annotation bounding box at downsample 1.0.
