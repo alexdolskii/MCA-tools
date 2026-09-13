@@ -1,0 +1,12 @@
+name: mca_tools
+channels:
+  - conda-forge
+  - nodefaults
+dependencies:
+  - python=3.12
+  - pip
+  - openjdk=11
+  - maven
+
+# Install the Python dependencies and terminal commands from the repository root:
+# python -m pip install .

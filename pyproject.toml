@@ -1,0 +1,35 @@
+[build-system]
+requires = ["setuptools>=77,<82", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mca-tools"
+version = "0.1.0"
+description = "LIF export and SHG image analysis for the Multimodal Collagen Analysis Toolkit."
+readme = "README.md"
+requires-python = ">=3.12,<3.13"
+license = "MIT"
+license-files = ["LICENSE"]
+dependencies = [
+    "numpy==2.2.6",
+    "pandas==2.2.3",
+    "pyimagej==1.8.0",
+    "readlif==0.6.6",
+    "scyjava==1.12.4",
+    "tifffile==2025.6.11",
+]
+
+[project.scripts]
+shg1_lif_to_tif = "mca_tools.shg1_lif_to_tif:main"
+shg2_intden_assay = "mca_tools.shg2_intden_assay:main"
+
+[project.urls]
+Repository = "https://github.com/alexdolskii/MCA-tools"
+Issues = "https://github.com/alexdolskii/MCA-tools/issues"
+
+[tool.setuptools]
+packages = ["mca_tools"]
+include-package-data = false
+
+[tool.setuptools.package-dir]
+mca_tools = "code"
