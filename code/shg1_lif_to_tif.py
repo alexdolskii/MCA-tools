@@ -100,7 +100,9 @@ def find_lif_files(folder: Path) -> list[Path]:
         (
             path
             for path in folder.iterdir()
-            if path.is_file() and path.suffix.lower() == ".lif"
+            if path.is_file()
+            and not path.name.startswith(".")
+            and path.suffix.lower() == ".lif"
         ),
         key=lambda path: path.name.lower(),
     )
