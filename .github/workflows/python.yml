@@ -1,0 +1,61 @@
+name: MCA Python checks
+
+on:
+  push:
+    branches: [main, 'codex/**']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package and check dependencies
+        run: |
+          python -m pip install '.[dev]'
+          python -m pip check
+          shg1_lif_to_tif --help
+          shg2_intden_assay --version
+      - name: Check style
+        run: |
+          ruff check code tests
+          ruff format --check code tests
+      - name: Test export, calibration, selection and command resources
+        run: python -m pytest -q -m 'not imagej'
+
+  imagej:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash -el {0}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: conda-incubator/setup-miniconda@v3
+        with:
+          miniforge-version: latest
+          auto-activate-base: false
+          activate-environment: mca_tools
+          environment-file: environment.yaml
+      - name: Install MCA and check the declared environment
+        run: |
+          python -m pip install '.[dev]'
+          python -m pip check
+          java -version
+          mvn -version
+      - name: Check native Fiji measurements and metadata
+        env:
+          MCA_RUN_IMAGEJ_TESTS: '1'
+        run: python -m pytest -q tests/test_imagej.py

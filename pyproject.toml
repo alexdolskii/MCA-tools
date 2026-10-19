@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mca-tools"
-version = "0.1.0"
+version = "0.2.0"
 description = "LIF export and SHG image analysis for the Multimodal Collagen Analysis Toolkit."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -17,19 +17,36 @@ dependencies = [
     "readlif==0.6.6",
     "scyjava==1.12.4",
     "tifffile==2025.6.11",
+    "psutil>=5.9,<8",
 ]
 
 [project.scripts]
-shg1_lif_to_tif = "mca_tools.shg1_lif_to_tif:main"
-shg2_intden_assay = "mca_tools.shg2_intden_assay:main"
+shg1_lif_to_tif = "mca_tools.cli:lif_export"
+shg2_intden_assay = "mca_tools.cli:shg_analysis"
 
 [project.urls]
 Repository = "https://github.com/alexdolskii/MCA-tools"
 Issues = "https://github.com/alexdolskii/MCA-tools/issues"
 
-[tool.setuptools]
-packages = ["mca_tools"]
-include-package-data = false
-
 [tool.setuptools.package-dir]
-mca_tools = "code"
+"" = "code"
+
+[tool.setuptools.packages.find]
+where = ["code"]
+include = ["mca_tools"]
+namespaces = false
+
+[project.optional-dependencies]
+dev = ["pytest>=8,<10", "ruff>=0.11,<1"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 79
+src = ["code"]
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = ["imagej: native ImageJ integration (set MCA_RUN_IMAGEJ_TESTS=1)"]
