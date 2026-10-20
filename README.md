@@ -88,7 +88,7 @@ protocols.io; the user guides above are the permanent documentation.
 
 ## Support and contributing
 
-Maintained by [Aleksandr Dolskii](https://github.com/alexdolskii).
+Maintained by [Aleksandr Dolskii](https://github.com/alexdolskii) and [Ekaterina Shitik](https://github.com/EkaterinShitik).
 Use [GitHub Issues](https://github.com/alexdolskii/MCA-tools/issues) for questions
 and reproducible bug reports. Include the command, software version and relevant
 log excerpt. Contributions are welcome through pull requests; see the
