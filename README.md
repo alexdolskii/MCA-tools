@@ -92,53 +92,19 @@ the drive is mounted and writable before using this path.
 
 Download a matching installer from the official
 [Miniforge releases](https://github.com/conda-forge/miniforge/releases/latest).
-[Installation steps:](https://continuumio-docs.readthedocs-hosted.com/miniconda/install/#quick-command-line-install)
-Use the `.sh` installer for this guide. In Terminal, `uname -m` prints the
-processor architecture.
-
-| Computer | Installer filename |
-|---|---|
-| Mac with Apple Silicon (`arm64`) | `Miniforge3-MacOSX-arm64.sh` |
-| Intel Mac (`x86_64`) | `Miniforge3-MacOSX-x86_64.sh` |
-| Linux / Ubuntu in WSL on Intel or AMD (`x86_64`) | `Miniforge3-Linux-x86_64.sh` |
-| Linux / Ubuntu in WSL on ARM (`aarch64`) | `Miniforge3-Linux-aarch64.sh` |
-
-The installer must match the operating system of the terminal: use the Linux
-installer inside WSL. Available MCA dependencies can vary by architecture;
-an installer being available does not mean that MCA has been tested there.
-
-On a Mac, open **Applications → Utilities → Terminal**. If your browser saved
-the Apple Silicon installer in Downloads, run:
-
-```bash
-bash ~/Downloads/Miniforge3-MacOSX-arm64.sh
-```
-
-For Intel macOS or Linux, substitute the downloaded filename and location.
-In WSL, a file downloaded by the Windows browser may be at
-`/mnt/c/Users/YourWindowsName/Downloads/Miniforge3-Linux-x86_64.sh`; replace
-`YourWindowsName` and quote the full path if it contains spaces.
-
-Follow the installer prompts, keep the default location unless necessary,
-and accept shell initialization. Close and reopen the terminal, then check:
-
-```bash
-conda --version
-```
-
-It should print a Conda version. If the command is unavailable, see
-[troubleshooting](#troubleshooting). The Python version in Conda's `base`
-environment can differ from MCA's Python 3.12.
+Follow steps [link](https://continuumio-docs.readthedocs-hosted.com/miniconda/install/#quick-command-line-install)
 
 ### Install Git, download MCA and create its environment
 
-Install Git using Conda, then download the repository:
+Install Git [link](https://git-scm.com/install/mac)
 
+Choose folder for the project:
+
+For advanced users familiar with command-line tools, the entire workflow can be performed directly in a terminal. Standard commands such as `cd` (navigate between directories), `ls` (list files and folders), and `mkdir` (create new directories) can be used to establish and manage the local project structure. JSON configuration files can be created and modified using a command-line text editor, and analysis scripts can be executed directly from the terminal.
+However, we recommend using **Visual Studio Code (VS Code)** [link](https://code.visualstudio.com) to simplify project setup and management, particularly for users who are less familiar with command-line operations. VS Code provides a convenient graphical interface for creating and organizing local project directories, viewing and editing JSON configuration files, and identifying potential formatting errors. Its integrated terminal also allows users to execute scripts and manage the analysis workflow without switching between applications. This approach combines the flexibility of command-line execution with the convenience of a graphical development environment.
+
+### Install MCA-tools
 ```bash
-conda install -n base -c conda-forge git
-conda run -n base git --version
-mkdir -p ~/projects
-cd ~/projects
 conda run -n base git clone --branch main --single-branch https://github.com/alexdolskii/MCA-tools.git
 cd MCA-tools
 conda env create -f environment.yaml
