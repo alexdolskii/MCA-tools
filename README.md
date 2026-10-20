@@ -8,7 +8,13 @@ SHG area and intensity in its own `mca_tools` environment. The independent
 [QuPath workflow](qupath_code/README.md) automates annotation export and
 colour-based area measurements in Herovici-stained brightfield images.
 
-**Version 0.2.2:** MCA uses the same **Python 3.10, NumPy 1.26.4 and Fiji
+**Version 0.2.3:** LIF export validates block boundaries and supports verified
+zero-filled tails in newer LIF files. It avoids readlif's misleading
+`I/O operation on closed file` / `seek of closed file` error and reports
+unsupported or incomplete blocks with their byte positions. Source files
+are read-only; accepted padding is recorded in the log and TIFF sidecars.
+
+MCA uses the same **Python 3.10, NumPy 1.26.4 and Fiji
 bridge** baseline as FIA `tech_dev` and UMA `UMA-tools-V2`, in its own
 `mca_tools` environment. Shared bridge versions are PyImageJ 1.5.0,
 scyjava 1.10.0 and jgo 1.0.4, with Fiji 2.14.0 and Java 11. MCA additionally
@@ -141,7 +147,7 @@ shg2_intden_assay --version
 
 Expected: Python **3.10.x** from a path containing `envs/mca_tools`, no broken
 pip requirements, Java **11**, Maven **3.9.9** and MCA command help
-or version **0.2.2**. These checks do not start Fiji. The SHG backend is pinned
+or version **0.2.3**. These checks do not start Fiji. The SHG backend is pinned
 to `sc.fiji:fiji:2.14.0` in
 [fiji_config.py](code/mca_tools/fiji_config.py) and uses the environment's
 Java. A separate desktop Fiji installation is only a viewer and does not
@@ -246,7 +252,7 @@ the next stage reject them. Only timepoint 0 is exported; see
 
 ## 5. Run the SHG analysis
 
-Use MCA 0.2.2 with the dependencies installed from this checkout.
+Use MCA 0.2.3 with the dependencies installed from this checkout.
 If upgrading from 0.2.0 or 0.2.1, follow [the update instructions](#7-later-sessions-and-software-updates)
 before starting this stage.
 
@@ -451,6 +457,16 @@ when available. A `<image>.tif.json` sidecar preserves spatial sampling,
 dimensions, scene metadata, channel/tile/timepoint and checksums. The complete
 original LIF XML header is saved under `Metadata/`.
 
+LIF export checks XML/description boundaries and declared memory-block
+lengths before decoding pixels. A zero-filled tail is accepted only after
+all of it has been checked and the complete blocks agree with XML-declared
+memory sizes. This case is recognized by the
+[Bio-Formats LIF reader](https://github.com/ome/bioformats/blob/develop/components/formats-gpl/src/loci/formats/in/LIFReader.java).
+MCA gives readlif a bounded read-only view; the original file and pixel
+offsets stay unchanged. TIFF sidecars include `lif_structure`, and the log
+records `LIF_ZERO_PADDING` when padding was accepted. Unknown nonzero data,
+truncated blocks and inconsistent metadata remain failures.
+
 readlif reports pixels/µm; MCA stores its reciprocal, µm/pixel. X/Y are handled
 independently, including non-square pixels. Missing/invalid calibration stays
 missing. It is never replaced with an assumed 1 µm/pixel.
@@ -555,6 +571,13 @@ calibration, hidden/corrupt files, result selection, CLI and temporary storage.
 Native tests cover MAX/SUM, rectangular 8/16-bit images, float32, saved
 calibration, zero signal and multiple folders.
 
+LIF-reader regression tests reproduce readlif's premature-close failure
+using complete images followed by zero padding. They cover short and large
+padding, exact pixel/XML/calibration preservation, 32/64-bit block lengths,
+unexpected nonzero tails, truncated input and inconsistent memory sizes.
+These cases establish the supported behavior; an untested user file may
+still contain a different unsupported layout or incomplete data.
+
 Local validation used real headless ImageJ1 1.54p with ij1-patcher and a public
 [readlif LIF fixture](https://github.com/Arcadia-Science/readlif/tree/master/tests/artifacts/xyzt-example).
 MCA 0.2.0 failed full Fiji startup with PyImageJ 1.8.0
@@ -620,6 +643,7 @@ certificate trust.
 | Input JSON / folder error | Save valid JSON; replace example paths with existing folders. In WSL use Linux paths such as `/mnt/d/...`, not `D:\...`. |
 | `NO_INPUT` | Put original `.lif` files directly in the listed folder. Export is not recursive. Files beginning with a dot are intentionally excluded. |
 | No verified `channel_N` export | Check stage 1 status, the channel number and file integrity. Re-export from original LIF if necessary. See the explicit legacy/partial options above. |
+| `I/O operation on closed file` or `seek of closed file` inside readlif | Upgrade to MCA 0.2.3 and reinstall the package. readlif closes its handle while reporting an unexpected block marker; the message alone does not establish file corruption. MCA now accepts verified zero padding and reports other structural problems with byte positions. If it still fails, retain the new log and check the original LIF in Leica LAS X or Fiji Bio-Formats; do not trim or overwrite it. |
 | `UnboundLocalError` mentioning `major_version` at Fiji startup | Update from MCA 0.2.0, activate `mca_tools` and reinstall with `python -m pip install .`. Version 0.2.1 pins PyImageJ 1.5.0, scyjava 1.10.0 and jgo 1.0.4. Check `python -m pip show mca-tools pyimagej scyjava jgo` and restart the command in a fresh process. |
 | Other Java / Maven errors, including missing `JWlz` or a malformed JAR path | Check Java 11 and Maven 3.9.9 in the active environment; apply the Conda environment update above if Maven is 3.10. Then inspect `imagej.log` for the exact error. The first backend download needs network access to Maven repositories; institutional proxy/firewall settings may require local IT support. |
 | `MISSING_XY_CALIBRATION` or blank µm² fields | Check source metadata and re-export original LIF with the current exporter. Do not replace missing scale with an assumed value; pixel measurements remain available. |

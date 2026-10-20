@@ -13,8 +13,14 @@ measurement definitions and validation status.
 
 ## Protocol status and version
 
-Documentation date: 20 October 2026. Software: MCA-tools 0.2.2.
-This release aligns Python 3.10 and NumPy 1.26.4 with FIA `tech_dev` and UMA
+Documentation date: 20 October 2026. Software: MCA-tools 0.2.3.
+This release adds LIF block validation and read-only handling of verified
+zero-filled tails, avoiding readlif's misleading closed-file error.
+Unknown nonzero tails, truncated blocks and inconsistent memory sizes still
+stop export. The `LIF_ZERO_PADDING` log entry and `lif_structure` sidecar
+fields record accepted padding; source pixels and XML remain unchanged.
+
+The environment aligns Python 3.10 and NumPy 1.26.4 with FIA `tech_dev` and UMA
 `UMA-tools-V2`, retaining a separate MCA environment. tifffile 2025.5.10
 is used because subsequent releases dropped Python 3.10 support; readlif
 0.6.5 is used because 0.6.6 requires NumPy 2.
@@ -204,7 +210,7 @@ python -m pip freeze > mca_python_packages_record.txt
 conda run -n base git rev-parse HEAD > mca_commit_record.txt
 ```
 
-These checks do not start Fiji. Use MCA 0.2.2 with the dependencies declared
+These checks do not start Fiji. Use MCA 0.2.3 with the dependencies declared
 by that checkout. When upgrading from the Python 3.12 environment of MCA
 0.2.0/0.2.1, create a fresh environment and preserve the old one:
 
@@ -501,6 +507,7 @@ the affected data.
 | Invalid JSON or missing folder | Save valid JSON and replace example paths. Use paths visible inside the active operating system, including `/mnt/d/...` in WSL. |
 | No input images | Place LIFs directly in the listed folder. Hidden `._*` files are intentionally ignored. |
 | No verified export/channel | Review export status, channel number and file integrity; re-export original LIF if necessary. |
+| Closed-file error inside readlif | Update to MCA 0.2.3 and reinstall. The reader now handles verified zero tails and reports other structural problems with byte positions. If the new run fails, retain its log and check the original LIF in Leica LAS X or Fiji Bio-Formats without overwriting it. |
 | PyImageJ error mentioning `major_version` | Update MCA 0.2.0 to 0.2.1 or later, activate `mca_tools`, reinstall with `python -m pip install .` and restart the command. Verify versions with `python -m pip show mca-tools pyimagej scyjava jgo`. |
 | Other Java/Maven initialization failure | Verify Java 11 and Maven 3.9.9 in the active environment; update the Conda environment if Maven is 3.10. Inspect `~/.mca-tools/runs/<run_id>/imagej.log`; initial component downloads require network access. |
 | Missing µm² measurements | Review original spatial metadata and sidecars; re-export if appropriate. Do not invent a pixel scale. |

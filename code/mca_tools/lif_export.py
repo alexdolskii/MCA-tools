@@ -7,7 +7,6 @@ from pathlib import Path
 
 import numpy as np
 import tifffile
-from readlif.reader import LifFile
 
 from .calibration import Calibration
 from .files import (
@@ -18,6 +17,7 @@ from .files import (
     write_json,
     write_text,
 )
+from .lif_reader import load_lif
 from .run import Run
 
 
@@ -83,7 +83,14 @@ def export_lif(path: Path, run: Run):
             message="LIF file is likely truncated.*",
             category=UserWarning,
         )
-        lif = LifFile(str(path))
+        lif, layout = load_lif(path)
+    if layout.data_end < layout.file_size:
+        run.logger.info(
+            "LIF_ZERO_PADDING | %s | starts_at=%d | verified_bytes=%d",
+            path.name,
+            layout.data_end,
+            layout.file_size - layout.data_end,
+        )
     images = list(lif.get_iter_image())
     if not images:
         raise ValueError("No image scenes in LIF")
@@ -146,6 +153,7 @@ def export_lif(path: Path, run: Run):
                     f"_tile_{tile + 1}_C{channel + 1}.tif"
                 )
                 provenance = {
+                    "lif_structure": layout.as_dict(),
                     "source_lif": str(path),
                     "source_sha256": source_hash,
                     "source_xml": xml_path.relative_to(

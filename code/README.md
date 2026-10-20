@@ -10,6 +10,7 @@ Implementations live in `mca_tools`; QuPath is a separate workflow.
 | `config.py` | Input JSON and folder validation |
 | `files.py` | Shared inventories, safe names, hashes and atomic JSON |
 | `lif_export.py` | Native LIF pixels, TIFF calibration and metadata export |
+| `lif_reader.py` | Bounded read-only LIF parsing, block checks and verified zero-tail handling |
 | `calibration.py` | Explicit spatial units and dual-unit result columns |
 | `metadata.py` | TIFF/OME/ND2 physical metadata without guessed scales |
 | `discovery.py` | Latest verified complete or explicitly allowed partial export |
@@ -25,6 +26,9 @@ Implementations live in `mca_tools`; QuPath is a separate workflow.
 - Keep the original XY grid and pixel values during export. No resizing,
   interpolation, normalization or intensity scaling is permitted in export
   or projection. SUM uses float32; MAX retains the input storage bit depth.
+- Never skip unknown LIF blocks. Accept a zero tail only after checking every
+  trailing byte and agreement with XML-declared memory sizes. Preserve the
+  complete original source checksum and record the bounded-reader layout.
 - Keep scientific changes separate from structural edits. Preserve Moments,
   manual thresholding, particle limits and the positive-intensity measurement
   floor unless a scientific change has been explicitly agreed and tested.

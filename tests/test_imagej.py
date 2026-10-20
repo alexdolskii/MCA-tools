@@ -34,7 +34,9 @@ def test_installed_commands_complete_with_full_fiji(
     pixels[:, 1:3, 2:5] = np.array([10, 20, 30], dtype=np.uint16)[
         :, None, None
     ]
-    lif_factory(source / "sample.lif", pixels)
+    lif_path = lif_factory(source / "sample.lif", pixels)
+    with lif_path.open("ab") as stream:
+        stream.write(bytes(512))
     (source / "._sample.lif").write_bytes(b"ignored metadata")
     config = tmp_path / "input.json"
     config.write_text(json.dumps({"paths_to_files": [str(source)]}))
@@ -67,6 +69,8 @@ def test_installed_commands_complete_with_full_fiji(
     assert audit["status"] == "SUCCESS"
     assert audit["counts"]["selected"] == 1
     channel = export / "channel_1"
+    metadata = json.loads(next(channel.glob("*.tif.json")).read_text())
+    assert metadata["lif_structure"]["verified_zero_padding_bytes"] == 512
     previous = set()
     for method, expected_signal in (("max", 180), ("sum", 360)):
         result = run(
