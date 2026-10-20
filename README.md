@@ -3,6 +3,10 @@
 **Multimodal Collagen Analysis Toolkit** — two workflows for quantitative
 collagen-associated image analysis.
 
+Developed in the [Edna (Eti) Cukierman laboratory](https://www.foxchase.org/edna-cukierman)
+at **Fox Chase Cancer Center**, MCA-tools supports research into the extracellular
+matrix (ECM) microenvironment, with a particular focus on collagen biology.
+
 | Tool | Input and purpose |
 |---|---|
 | **SHG area and intensity** | Leica `.lif` data or compatible single-channel TIFFs from other microscopes; measures second-harmonic generation signal area and intensity at native XY resolution. |
@@ -74,6 +78,14 @@ red/blue component areas require validation for the staining being analyzed.
 are retained for review and will be removed after agreement and transfer to
 protocols.io; the user guides above are the permanent documentation.
 
+## Related projects
+
+- [UMA-tools](https://github.com/alexdolskii/UMA-tools/tree/main) — analysis of
+  fibroblast/ECM units, including fibronectin fiber alignment, matrix thickness
+  and nuclear organization.
+- [FIA-tools](https://github.com/alexdolskii/FIA-tools/tree/main) — quantification
+  of nuclear staining, foci and marker colocalization in fibroblast/ECM units.
+
 ## Support and contributing
 
 Maintained by [Aleksandr Dolskii](https://github.com/alexdolskii).
@@ -82,10 +94,25 @@ and reproducible bug reports. Include the command, software version and relevant
 log excerpt. Contributions are welcome through pull requests; see the
 [developer guide](code/README.md) for checks.
 
-## Citation and license
+## Citation
 
-When reporting results, identify the MCA-tools version and commit, and cite
-the underlying methods/software listed in the relevant guide.
+Report the MCA-tools version and commit, and cite the methods and software
+used in your workflow:
+
+- **Herovici method:** [Samyukta et al., 2022](https://doi.org/10.31557/APJCP.2022.23.8.2829).
+- **QuPath workflow:** [QuPath](https://doi.org/10.1038/s41598-017-17204-5),
+  [ImageJ](https://doi.org/10.1038/nmeth.2089),
+  [Colour Deconvolution2](https://doi.org/10.1093/bioinformatics/btaa847), and the
+  [original colour-deconvolution method](https://pubmed.ncbi.nlm.nih.gov/11531144/).
+- **SHG workflow:** [Fiji](https://doi.org/10.1038/nmeth.2019),
+  [ImageJ](https://doi.org/10.1038/nmeth.2089), and
+  [PyImageJ](https://doi.org/10.1038/s41592-022-01655-4), together with the
+  applicable library and thresholding references.
+
+See the [citation guide](docs/citations.md) for full references, NumPy/pandas,
+TIFF/LIF reader credits, conditional citations and version-reporting examples.
+
+## License
 
 MCA-tools is distributed under the [MIT License](LICENSE). External software
 retains its own licenses and attribution requirements.
