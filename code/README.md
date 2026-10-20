@@ -88,16 +88,54 @@ python -m pytest -q -m 'not imagej'
 MCA_RUN_IMAGEJ_TESTS=1 python -m pytest -q tests/test_imagej.py
 ```
 
-Native tests need Java and the first Fiji dependency download. Lightweight
-tests generate small LIF files and use the real readlif parser; they cover
-TIFF pixel equality, calibration, failed inputs, hidden files, run selection,
-JSON paths, CLI startup and owned temporary storage. Native tests use
-rectangular, anisotropic, 8/16-bit and zero-signal images, MAX/SUM, saved
-masks/projections, and two-folder partial completion. A full-Fiji test also
-executes installed export and MAX/SUM commands in fresh processes, verifies
-Bio-Formats availability, independent TIFF input, separate merged tables and
-calibrated measurements, and requires normal
-worker exit. CI runs these checks with Java 11 on Linux and macOS.
+The suite contains 47 lightweight cases and 13 native ImageJ cases.
+Lightweight tests generate small LIF files and use the real readlif parser;
+they cover TIFF pixel equality, calibration, failed inputs, hidden files,
+run selection, equivalent file/folder inventories, JSON paths, CLI startup,
+owned temporary storage and empty-input handling without starting Fiji.
+Native tests need Java and the first Fiji dependency download. They cover
+rectangular and anisotropic images, 8/16/32-bit signal, MAX/SUM, automatic
+and manual thresholds, saved masks/projections, missing calibration,
+zero signal, merged-table separation and partial completion across folders.
+The full-Fiji command test exports LIF and starts one analysis worker per
+input route: exported TIFF/SUM and independent TIFF/MAX. It checks
+Bio-Formats availability, calibrated measurements and normal worker exit.
+Projection variants are also checked directly in the shared ImageJ session.
+
+### Continuous integration
+
+The [GitHub Actions workflow](../.github/workflows/python.yml) uses the
+declared Python 3.10 environment and Java 11 for full Fiji checks.
+
+| Change or trigger | Checks |
+|---|---|
+| Python code or tests | Lightweight suite and Ruff on Linux; native suite on macOS |
+| Dependencies, Fiji/worker configuration or the workflow | Both suites on Linux and macOS; Ruff once on Linux |
+| Manual run with `full` enabled (default), or a `v*` tag | Both suites on Linux and macOS |
+| Documentation only | No SHG/Fiji workflow |
+
+Before a release, open **Actions > MCA Python checks > Run workflow**,
+select the release branch and leave **full** enabled. Confirm all four
+jobs pass for the intended commit. Creating a `v*` tag also runs the full
+matrix; tag runs are not limited by changed-file filters.
+
+Push runs are limited to `main` and version tags; feature branches use
+pull-request checks to avoid simultaneous push/PR runs. A newer run cancels
+an unfinished run for the same branch or PR. The extra macOS Python job is
+skipped during ordinary changes. Missing dependency downloads or DNS failures
+are environment failures, not evidence of incorrect measurements; inspect
+the job log and rerun the failed job after the service is available.
+
+### QuPath validation
+
+The Python suite does not validate the independent Herovici script. After
+changing that script, run a representative annotated image in QuPath 0.7.0:
+check native crop size and calibration, white pixels outside the ROI,
+red/blue masks and their areas against the saved CSV. Check current-image
+and project processing when changing scope selection or project iteration.
+Record the QuPath, embedded ImageJ and Colour Deconvolution2 versions with
+the validation result; automated SHG checks do not establish Windows or
+QuPath GUI compatibility.
 
 The pytest configuration disables its `faulthandler` plugin, as recommended
 by the [JPype user guide](https://jpype.readthedocs.io/en/latest/userguide.html),

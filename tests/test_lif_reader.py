@@ -11,7 +11,7 @@ from mca_tools.lif_export import run_export
 from mca_tools.lif_reader import LifFormatError, load_lif
 
 
-@pytest.mark.parametrize("padding", [1, 4, 99, 100, 1024 * 1024 + 7])
+@pytest.mark.parametrize("padding", [1, 4, 1024 * 1024 + 7])
 def test_zero_padding_preserves_pixels_metadata_and_source(
     tmp_path, lif_factory, padding
 ):

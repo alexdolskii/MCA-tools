@@ -1,4 +1,5 @@
 import json
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -28,6 +29,12 @@ def test_tiff_config_inventory_and_overlapping_entries(tmp_path):
     selection = select_tiff_inputs([folder])[0]
     assert selection.files == [visible]
     assert selection.directory == folder
+    # Explicit file lists and folders must select the same grouped inputs.
+    second = folder / "sample_MERGED.tif"
+    second.touch()
+    assert select_tiff_inputs([second, visible]) == select_tiff_inputs(
+        [folder]
+    )
     with pytest.raises(ValueError, match="overlapping"):
         select_tiff_inputs([visible, folder])
     config.write_text(json.dumps({"paths_to_files": ["images/._signal.tif"]}))
@@ -119,3 +126,30 @@ def test_plain_multipage_tiff_records_z_assumption(tmp_path):
     layout = tiff_layout(path)
     assert layout["shape_zyx"] == [3, 5, 7]
     assert layout["assumed_z_stack"]
+
+
+def test_empty_independent_folder_is_recorded_without_starting_fiji(
+    tmp_path, monkeypatch
+):
+    from mca_tools import shg_analysis
+
+    def unexpected(_logger):
+        raise AssertionError("No JVM should start for an empty inventory")
+
+    monkeypatch.setattr(shg_analysis, "session", unexpected)
+    args = SimpleNamespace(
+        input_source="tiff",
+        input=tmp_path / "input.json",
+        projection="max",
+        threshold_mode="auto",
+        threshold=None,
+        channel=None,
+        allow_partial_export=False,
+        allow_legacy_export=False,
+    )
+    assert shg_analysis.run_analysis([tmp_path], args) == 1
+    result = next(tmp_path.glob("Mask_Intensity_Area_Results_*"))
+    record = json.loads((result / "run_status.json").read_text())
+    assert record["status"] == "FAILED"
+    assert record["counts"]["selected"] == 0
+    assert "No TIFF inputs" in record["error"]
