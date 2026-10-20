@@ -1,5 +1,9 @@
 # Automated annotation export and Herovici colour-area analysis using QuPath and Colour Deconvolution2
 
+**Temporary protocols.io draft.** Retain during review; remove after agreement
+and transfer to protocols.io. The permanent user instructions are in the
+[QuPath guide](../qupath_code/README.md).
+
 This is a standalone draft for **protocols.io**, not a published protocol.
 Copy its title, abstract, materials and numbered procedure into the
 corresponding fields. It describes the independent Groovy workflow in

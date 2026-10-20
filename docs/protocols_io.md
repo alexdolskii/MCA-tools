@@ -1,5 +1,9 @@
 # Native-resolution SHG area and intensity analysis from Leica LIF or independent TIFF files using MCA-tools
 
+**Temporary protocols.io draft.** Retain during review; remove after agreement
+and transfer to protocols.io. The permanent user instructions are in the
+[SHG guide](shg_guide.md).
+
 This is a standalone text for a protocols.io draft. It has not been published
 to protocols.io. Copy the title, abstract, materials and numbered procedure
 into the corresponding protocol fields. Record the software version and
@@ -192,8 +196,8 @@ not required for package installation.
 
 Stop if environment creation fails. The explicit `conda run -n mca_tools`
 command prevents installation into `base` after a failed activation.
-For `CondaSSLError`, follow the README's
-[certificate and channel troubleshooting](https://github.com/alexdolskii/MCA-tools#conda-certificate-and-channel-errors).
+For `CondaSSLError`, follow the SHG guide's
+[certificate and channel troubleshooting](shg_guide.md#conda-certificate-and-channel-errors).
 Conda can use `CONDA_SSL_VERIFY=truststore` when the institution's certificate
 is already trusted by the operating system (Conda >=23.9; base Python >=3.10).
 Otherwise obtain the institution's CA bundle from IT. Keep certificate
@@ -590,7 +594,7 @@ the affected data.
 | Problem | Action |
 |---|---|
 | Conda is not found | Reopen the terminal after installation. If initialization was skipped, use `~/miniforge3/bin/conda init zsh` on macOS or `~/miniforge3/bin/conda init bash` for Bash on Linux/WSL, then reopen; adapt the path/shell if needed. |
-| Conda SSL certificate error | Use the OS trust store if the institutional certificate is already trusted, or the CA bundle supplied by IT; see the README certificate troubleshooting. Resolve this before continuing installation. |
+| Conda SSL certificate error | Use the OS trust store if the institutional certificate is already trusted, or the CA bundle supplied by IT; see the SHG guide certificate troubleshooting. Resolve this before continuing installation. |
 | Environment missing or Python 3.14 rejected | Environment creation failed or `base` is still active. Create MCA's Python 3.10 environment successfully, then install using `conda run -n mca_tools python -m pip install .`. |
 | MCA command is not found | Activate `mca_tools`; install with `python -m pip install .` in the project root; check the interpreter path. |
 | Invalid JSON or missing folder | Save valid JSON and replace example paths. Use paths visible inside the active operating system, including `/mnt/d/...` in WSL. |
