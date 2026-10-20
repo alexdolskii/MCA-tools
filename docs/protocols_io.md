@@ -5,6 +5,12 @@ to protocols.io. Copy the title, abstract, materials and numbered procedure
 into the corresponding protocol fields. Record the software version and
 validate masks and calibration for the experimental dataset being analyzed.
 
+For Herovici-stained histological images, use the independent
+[QuPath/Colour Deconvolution2 protocol](protocols_io_qupath_herovici.md).
+That protocol adapts [Samyukta et al. (2022)](https://pubmed.ncbi.nlm.nih.gov/36037140/),
+runs inside QuPath and has its own software requirements,
+measurement definitions and validation status.
+
 ## Protocol status and version
 
 Documentation date: 20 October 2026. Software: MCA-tools 0.2.1; implementation
@@ -40,8 +46,8 @@ logs support traceability.
 
 The workflow analyzes timepoint 0 and reports projected two-dimensional
 measurements. It does not quantify three-dimensional collagen volume or
-automatically perform group statistics. The separate QuPath workflow is
-outside the scope of this protocol.
+automatically perform group statistics. The QuPath workflow is described
+in the companion protocol linked above and is not a stage of this SHG procedure.
 
 ## Keywords
 

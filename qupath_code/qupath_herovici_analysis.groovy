@@ -1,8 +1,34 @@
 /*
- * QuPath -> internal ImageJ/Fiji -> Colour Deconvolution2
- * Complete Herovici annotation export and analysis workflow.
+ * QuPath -> embedded ImageJ1 -> Colour Deconvolution2
+ * Automation of annotation export and area analysis of Herovici-stained
+ * brightfield histological images.
  *
  * Version 1
+ * Documentation and structure reviewed: 20 October 2026.
+ *
+ * Methodological basis:
+ *   Adapted from the Herovici image-analysis approach of Samyukta et al.
+ *   (2022), Asian Pacific Journal of Cancer Prevention 23(8):2829-2834.
+ *   https://pubmed.ncbi.nlm.nih.gov/36037140/
+ *   https://doi.org/10.31557/APJCP.2022.23.8.2829
+ *
+ * Colour-deconvolution software and algorithm references:
+ *   Landini G, Martinelli G, Piccinini F. Colour deconvolution: stain unmixing
+ *   in histological imaging. Bioinformatics 37(10):1485-1487, 2021.
+ *   https://doi.org/10.1093/bioinformatics/btaa847
+ *   The plugin implements the colour-deconvolution method of Ruifrok and
+ *   Johnston (2001): https://pubmed.ncbi.nlm.nih.gov/11531144/
+ * This script automates and adapts the published image-analysis steps using
+ * QuPath annotations and ImageJ/plugin operations. The RGB preset and fixed
+ * threshold defaults are this workflow's settings and require dataset QC.
+ *
+ * Runtime requirements:
+ *   QuPath with its ImageJ extension, bundled Groovy/Java runtime, and the
+ *   external Colour Deconvolution2 plugin available to embedded ImageJ.
+ *   This workflow runs independently of MCA's Python/Conda environment.
+ * See qupath_code/README.md for installation, library attribution, units,
+ * output handling and the function-level structure. A standalone protocol
+ * is provided in docs/protocols_io_qupath_herovici.md.
  *
  * Analysis logic intentionally preserved from the original two-step workflow:
  *   1. Export each QuPath annotation bounding box at downsample 1.0.

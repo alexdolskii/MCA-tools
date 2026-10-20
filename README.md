@@ -2,9 +2,11 @@
 
 Multimodal Collagen Analysis Toolkit
 
-MCA exports Leica LIF images as calibrated TIFF Z-stacks and measures SHG area
-and intensity. Python uses its own `mca_tools` environment. The separate
-[QuPath workflow](qupath_code) is unchanged.
+MCA supports SHG microscopy and histological image analysis. The Python
+workflow exports Leica LIF images as calibrated TIFF Z-stacks and measures
+SHG area and intensity in its own `mca_tools` environment. The independent
+[QuPath workflow](qupath_code/README.md) automates annotation export and
+colour-based area measurements in Herovici-stained brightfield images.
 
 **Version 0.2.1:** MCA now uses the same pinned Fiji bridge as FIA `tech_dev`
 and UMA `UMA-tools-V2`: PyImageJ 1.5.0, scyjava 1.10.0 and jgo 1.0.4, with
@@ -18,12 +20,17 @@ See [validation](#development-and-validation) for the actual test coverage.
 
 Start here:
 
+- [QuPath: installation, libraries, operation and results](qupath_code/README.md)
+- [QuPath: separate text for protocols.io](docs/protocols_io_qupath_herovici.md)
 - [Install on a computer with no analysis software](#1-install-on-a-computer-with-no-analysis-software)
 - [Connect Visual Studio Code to MCA](#2-set-up-visual-studio-code)
 - [Prepare the data and run the two stages](#3-prepare-input-folders)
 - [Find and inspect the results](#6-find-and-inspect-the-results)
 - [Interpret pixels, micrometers and intensity](#table-definitions)
 - [Separate text for protocols.io](docs/protocols_io.md)
+
+Sections 1-7 below describe the Python SHG workflow. For the Groovy script,
+follow the QuPath instructions linked above; no Conda environment is needed.
 
 ## 1. Install on a computer with no analysis software
 
@@ -594,5 +601,45 @@ sample identifiers before posting them publicly.
 
 ## QuPath
 
-[qupath_code](qupath_code) remains an independent QuPath workflow.
-Its files are unchanged by this Python update.
+The independent [Herovici Groovy script](qupath_code/qupath_herovici_analysis.groovy)
+runs inside **QuPath's Script Editor**. It processes the current image or
+the images in a QuPath project, exports annotation bounding boxes at
+downsample 1.0, whites out pixels outside each ROI, and calls
+**Colour Deconvolution2** with `vectors=RGB`. It saves three component images,
+red/blue masks and `Summary_Mask_Analysis.csv` with one row per processed
+annotation. Default thresholds are Red 0-100 and Blue 0-103 (8-bit values).
+
+This workflow is **based on and adapted from the Herovici image-analysis
+approach of [Samyukta et al. (2022), PMID 36037140](https://pubmed.ncbi.nlm.nih.gov/36037140/)**
+([doi:10.31557/APJCP.2022.23.8.2829](https://doi.org/10.31557/APJCP.2022.23.8.2829)).
+It helps automate the analysis through QuPath annotation export, ImageJ
+colour separation, thresholding and area measurement. It is an adaptation
+for automated processing, not a new stain-analysis method or an exact
+reproduction of every acquisition and threshold-selection step in the paper.
+The underlying plugin and algorithm are credited separately to
+[Landini et al. (2021)](https://doi.org/10.1093/bioinformatics/btaa847)
+and [Ruifrok and Johnston (2001)](https://pubmed.ncbi.nlm.nih.gov/11531144/).
+
+### QuPath libraries and software
+
+| Component | Use in this script | Installation |
+|---|---|---|
+| QuPath core and GUI (`QPEx`, `GeneralTools`, `RegionRequest`, `ROI`, `qupath.fx.dialogs.Dialogs`) | Project/image access, annotations, region requests and scope dialog | QuPath desktop application |
+| QuPath ImageJ extension (`IJExtension`, `IJTools`) | Embedded ImageJ and calibrated region conversion | Included with the standard QuPath distribution |
+| ImageJ1 (`ij.*`) | Images, thresholds, masks, area measurements, TIFF/CSV export and window cleanup | Supplied by QuPath's ImageJ integration |
+| Colour Deconvolution2, by Gabriel Landini | External ImageJ command for colour separation | Install the plugin separately and make its directory available to QuPath |
+| Groovy (`CompileStatic`, script language and collections) | Script execution and the ROI masking loop | Bundled with QuPath |
+| Java standard library (`java.io`, collections and exceptions); desktop runtime | Files, directories and GUI/runtime support | Use QuPath's packaged runtime |
+| Fiji desktop, optional | Convenient ImageJ distribution for installing the external plugin | Separate from the Python Fiji backend |
+
+See the [QuPath README](qupath_code/README.md) for exact imported classes,
+installation links, function structure, citations and a first-run procedure.
+The script uses QuPath's embedded ImageJ; the Python Fiji 2.14.0 endpoint and
+Conda pins above do not configure it.
+
+The CSV's `Red Area` and `Blue Area` use the active ImageJ spatial calibration.
+It does not currently export separate pixel/physical-unit columns or record
+the area unit in the CSV: verify and record that unit from the saved TIFFs.
+Use a new output folder for each run, and save unrelated ImageJ work before
+starting because this script closes embedded ImageJ windows and tables.
+The Python CI results above do not validate this interactive QuPath workflow.
