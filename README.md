@@ -229,7 +229,7 @@ processing and input counts. An explicit `._*.json` is rejected.
 In the activated VS Code terminal, from the project root, run:
 
 ```bash
-shg1_lif_to_tif -i my_input_paths.json
+shg1_lif_to_tif -i input_paths.json
 ```
 
 Wait for the command to finish and the terminal prompt to return. The log
@@ -254,7 +254,7 @@ Confirm which exported channel contains the SHG signal; channel 1 is only
 the software default. For channel 1, start the interactive workflow:
 
 ```bash
-shg2_intden_assay -i my_input_paths.json --channel 1
+shg2_intden_assay -i input_paths.json --channel 1
 ```
 
 The same JSON still points to the **original folders**. MCA selects an export
