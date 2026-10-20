@@ -92,6 +92,7 @@ the drive is mounted and writable before using this path.
 
 Download a matching installer from the official
 [Miniforge releases](https://github.com/conda-forge/miniforge/releases/latest).
+[Installation steps:] (https://continuumio-docs.readthedocs-hosted.com/miniconda/install/#quick-command-line-install)
 Use the `.sh` installer for this guide. In Terminal, `uname -m` prints the
 processor architecture.
 
