@@ -6,34 +6,201 @@ MCA exports Leica LIF images as calibrated TIFF Z-stacks and measures SHG area
 and intensity. Python uses its own `mca_tools` environment. The separate
 [QuPath workflow](qupath_code) is unchanged.
 
-## Install or update
+**Current validation status (20 October 2026):** installation and Python tests
+passed on Linux and macOS, but the full Fiji test failed at startup with
+`UnboundLocalError: major_version` in PyImageJ 1.8.0. LIF export does not use
+Java and is unaffected. The SHG instructions below describe the implemented
+workflow; its standard Fiji startup is currently blocked and needs a software
+fix before routine use. See [validation](#development-and-validation) and
+[troubleshooting](#troubleshooting). Installing the package or printing its
+version does not establish that SHG analysis works.
 
-Install Git and [Miniforge](https://github.com/conda-forge/miniforge), then:
+Start here:
+
+- [Install on a computer with no analysis software](#1-install-on-a-computer-with-no-analysis-software)
+- [Connect Visual Studio Code to MCA](#2-set-up-visual-studio-code)
+- [Prepare the data and run the two stages](#3-prepare-input-folders)
+- [Find and inspect the results](#6-find-and-inspect-the-results)
+- [Interpret pixels, micrometers and intensity](#table-definitions)
+- [Separate text for protocols.io](docs/protocols_io.md)
+
+## 1. Install on a computer with no analysis software
+
+### What you will install
+
+| Component | Purpose |
+|---|---|
+| Miniforge / Conda | Creates an isolated `mca_tools` software environment |
+| Git | Downloads MCA-tools and retrieves later updates |
+| Visual Studio Code (VS Code) with Microsoft's Python extension | Edits the input JSON and provides a terminal |
+| MCA-tools | Installs the two analysis commands and their Python dependencies |
+| Fiji desktop application, optional | Opens TIFF stacks, projections and masks for visual quality control |
+
+This guide uses **Visual Studio Code**, Microsoft's code editor. The larger
+Visual Studio IDE is not required. Conda installs Python 3.12, OpenJDK 11 and
+Maven from [environment.yaml](environment.yaml); the subsequent pip command
+installs the Python dependencies declared in [pyproject.toml](pyproject.toml).
+You do not need to install Python or Java separately, or install FIA-tools.
+
+Use a computer with enough memory for the largest native image stack and
+several working image copies. Storage requirements depend on the dataset:
+exported TIFFs and repeated analysis runs require additional space beside the
+original LIF files. Start with a small representative dataset. Network access
+is needed for software installation and the first Fiji/Maven download.
+
+The commands below use macOS Terminal, a Linux terminal, or Ubuntu under WSL.
+Run each command one line at a time and wait for it to finish. Text such as
+`(mca_tools)` is a terminal prompt, not part of a command to copy.
+
+### Windows preparation: use Ubuntu under WSL 2
+
+For Windows, the recommended route is WSL 2 with Ubuntu, followed by the Linux
+instructions below. Native Windows and WSL have not been validated for the
+complete MCA workflow; this is an installation route, not a platform validation
+claim.
+
+1. Follow Microsoft's [WSL installation guide](https://learn.microsoft.com/en-us/windows/wsl/install).
+   On a supported Windows 10/11 computer, open **PowerShell as Administrator**
+   and run:
+
+   ```powershell
+   wsl --install
+   ```
+
+2. Restart if requested. Open **Ubuntu** from the Start menu and create its
+   Linux username and password. All subsequent Conda and MCA commands run in
+   Ubuntu, not PowerShell.
+3. Install VS Code on Windows and the Microsoft **WSL** extension. Enable
+   **Add to PATH** in the VS Code installer. Later, open the cloned project
+   from Ubuntu using `code .`. See Microsoft's
+   [VS Code with WSL guide](https://learn.microsoft.com/en-us/windows/wsl/tutorials/wsl-vscode).
+
+Keep the code in your Linux home directory, for example
+`~/projects/MCA-tools`. A Windows folder `D:\Experiment_01\Condition_A`
+normally appears in Ubuntu as `/mnt/d/Experiment_01/Condition_A`. Check that
+the drive is mounted and writable before using this path.
+
+### Install Miniforge
+
+Download a matching installer from the official
+[Miniforge releases](https://github.com/conda-forge/miniforge/releases/latest).
+Use the `.sh` installer for this guide. In Terminal, `uname -m` prints the
+processor architecture.
+
+| Computer | Installer filename |
+|---|---|
+| Mac with Apple Silicon (`arm64`) | `Miniforge3-MacOSX-arm64.sh` |
+| Intel Mac (`x86_64`) | `Miniforge3-MacOSX-x86_64.sh` |
+| Linux / Ubuntu in WSL on Intel or AMD (`x86_64`) | `Miniforge3-Linux-x86_64.sh` |
+| Linux / Ubuntu in WSL on ARM (`aarch64`) | `Miniforge3-Linux-aarch64.sh` |
+
+The installer must match the operating system of the terminal: use the Linux
+installer inside WSL. Available MCA dependencies can vary by architecture;
+an installer being available does not mean that MCA has been tested there.
+
+On a Mac, open **Applications → Utilities → Terminal**. If your browser saved
+the Apple Silicon installer in Downloads, run:
 
 ```bash
-git clone --branch main --single-branch https://github.com/alexdolskii/MCA-tools.git
+bash ~/Downloads/Miniforge3-MacOSX-arm64.sh
+```
+
+For Intel macOS or Linux, substitute the downloaded filename and location.
+In WSL, a file downloaded by the Windows browser may be at
+`/mnt/c/Users/YourWindowsName/Downloads/Miniforge3-Linux-x86_64.sh`; replace
+`YourWindowsName` and quote the full path if it contains spaces.
+
+Follow the installer prompts, keep the default location unless necessary,
+and accept shell initialization. Close and reopen the terminal, then check:
+
+```bash
+conda --version
+```
+
+It should print a Conda version. If the command is unavailable, see
+[troubleshooting](#troubleshooting). The Python version in Conda's `base`
+environment can differ from MCA's Python 3.12.
+
+### Install Git, download MCA and create its environment
+
+Install Git using Conda, then download the repository:
+
+```bash
+conda install -n base -c conda-forge git
+conda run -n base git --version
+mkdir -p ~/projects
+cd ~/projects
+conda run -n base git clone --branch main --single-branch https://github.com/alexdolskii/MCA-tools.git
 cd MCA-tools
 conda env create -f environment.yaml
 conda activate mca_tools
 python -m pip install .
+```
+
+Accept Conda's installation confirmation when prompted. The final dot in
+`python -m pip install .` means “install this project”; run it in the folder
+containing `pyproject.toml`. Create the environment once. On later visits,
+activate the existing environment instead of creating it again.
+
+Check the installation:
+
+```bash
+python --version
+python -c "import sys; print(sys.executable)"
 python -m pip check
+java -version
+mvn -version
 shg1_lif_to_tif --help
 shg2_intden_assay --version
 ```
 
-After updating an existing checkout, activate `mca_tools` and run
-`python -m pip install .` again. The environment name is unchanged.
-[environment.yaml](environment.yaml) supplies Python 3.12, OpenJDK 11 and Maven;
-[pyproject.toml](pyproject.toml) declares Python dependencies. FIA is not required.
+Expected: Python **3.12.x** from a path containing `envs/mca_tools`, no broken
+pip requirements, Java **11**, Maven version information and MCA command help
+or version **0.2.0**. These checks do not start Fiji. The SHG backend is pinned
+to `sc.fiji:fiji:2.14.0` and uses the environment's Java. A separate desktop
+Fiji installation is only a viewer and does not replace this backend or fix
+the startup issue documented above.
 
-LIF export does not start Java. SHG uses the shared pinned endpoint
-`sc.fiji:fiji:2.14.0` in `code/mca_tools/imagej.py`, with the Java installed in
-the environment rather than a downloaded second JVM. The first Fiji start
-requires network access for Maven components. Help/version do not start Fiji.
+## 2. Set up Visual Studio Code
 
-## Input and commands
+1. Download [Visual Studio Code](https://code.visualstudio.com/download).
+   On macOS, unpack it and move the application to **Applications**; on Linux,
+   use the package for your distribution. Windows users install it on Windows
+   as described above.
+2. Open VS Code. In **Extensions**, install **Python**, published by Microsoft
+   (`ms-python.python`). In a WSL window, install Python **in WSL: Ubuntu** when
+   offered.
+3. On macOS/Linux, choose **File → Open Folder** and select
+   `~/projects/MCA-tools`. In WSL, run `code .` from that folder in Ubuntu and
+   check that the VS Code window indicates a WSL connection.
+4. Open the Command Palette with **Cmd+Shift+P** on macOS or **Ctrl+Shift+P**
+   on Windows/Linux. Run **Python: Select Interpreter**, then choose the
+   Python 3.12 interpreter named `mca_tools`. If it is missing, use the
+   executable path printed during the installation check. Microsoft's
+   [environment guide](https://code.visualstudio.com/docs/python/environments)
+   describes interpreter discovery.
+5. Choose **Terminal → New Terminal** and run:
 
-[input_paths.json](input_paths.json) lists original LIF folders:
+   ```bash
+   cd ~/projects/MCA-tools
+   conda activate mca_tools
+   python -c "import sys; print(sys.executable)"
+   ```
+
+The interpreter selection and the active terminal environment must both refer
+to `mca_tools`. Run the commands in this guide in that terminal. The editor's
+Run button does not supply the required input JSON or analysis choices.
+
+## 3. Prepare input folders
+
+Keep original LIF files in writable experiment folders outside the code
+checkout. For the first trial, use a separate folder containing copies of a
+few representative LIFs. Export scans only the files directly inside each
+listed folder; it does not recurse into subfolders.
+
+In VS Code, create **`my_input_paths.json`** in the MCA-tools project root,
+using [input_paths.json](input_paths.json) as a template. Replace every example
+path with a real folder containing original LIF files:
 
 ```json
 {
@@ -44,41 +211,214 @@ requires network access for Maven components. Help/version do not start Fiji.
 }
 ```
 
-Absolute paths are recommended. Relative entries now resolve against the
-JSON directory, independent of the terminal working directory. Missing,
-hidden or duplicate folders are rejected. WSL paths use `/mnt/d/...`.
-Dot files, including macOS `._*`, and directories named like images are
-excluded from processing and input counts. An explicit `._*.json` is rejected.
+| System | Example folder path to put in JSON |
+|---|---|
+| macOS external drive | `/Volumes/ExampleDrive/Experiment_01/Condition_A` |
+| Linux home directory | `/home/yourname/data/Experiment_01/Condition_A` |
+| Windows D: drive from WSL | `/mnt/d/Experiment_01/Condition_A` |
 
-Interactive workflow:
+Use double quotes, commas between entries and no comma after the last entry.
+JSON does not allow comments. Save the file with **Cmd+S / Ctrl+S**. Each
+entry must be a folder, not an individual `.lif` file or an exported
+`channel_1` folder. List each condition folder separately if necessary.
+
+Absolute paths are recommended. Relative entries resolve against the JSON
+directory. Missing, hidden or duplicate folders are rejected. Dot files,
+including macOS `._*`, and directories named like images are excluded from
+processing and input counts. An explicit `._*.json` is rejected.
+
+## 4. Export original LIF images
+
+In the activated VS Code terminal, from the project root, run:
 
 ```bash
+shg1_lif_to_tif -i my_input_paths.json
+```
+
+Wait for the command to finish and the terminal prompt to return. The log
+prints the output directory and a final status for each input folder. Check
+`run_status.json` in each newly created export: it should say `SUCCESS` with
+zero failed or unprocessed inputs. Export counts refer to **LIF files**; one
+LIF can produce many TIFFs because it contains scenes, channels and tiles.
+
+Open a TIFF and confirm the original width, height, Z slices and channel.
+Keep its adjacent `.tif.json`, the `Metadata` directory and `run_status.json`
+together with the TIFFs. Renaming or editing audited export files can make
+the next stage reject them. Only timepoint 0 is exported; see
+[metadata](#native-pixels-and-metadata) before using time series.
+
+## 5. Run the SHG analysis
+
+**Prerequisite:** resolve the current PyImageJ startup blocker described at
+the top of this README and confirm successful Fiji integration testing for
+the version you install. A successful LIF export alone is not that check.
+
+Confirm which exported channel contains the SHG signal; channel 1 is only
+the software default. For channel 1, start the interactive workflow:
+
+```bash
+shg2_intden_assay -i my_input_paths.json --channel 1
+```
+
+The same JSON still points to the **original folders**. MCA selects an export
+inside each folder automatically. It asks these questions in the terminal:
+
+| Prompt | What to enter | Effect |
+|---|---|---|
+| `Projection: 1/max or 2/sum` | `max` (or `1`), or `sum` (or `2`) | MAX keeps the largest intensity at each XY position; SUM adds intensities across Z |
+| `Threshold: auto or manual` | `auto` or `manual` | Auto uses ImageJ Moments for each image; manual uses your bounds |
+| `Lower threshold` / `Upper threshold` | Numbers, if manual | Bounds are in the projected image's intensity units; Enter defaults to 0 / `inf` |
+| `Start processing? yes/no` | `yes` | Starts the analysis |
+
+Use a documented projection/threshold policy for a comparison set. SUM
+depends on the number of Z slices; its values and appropriate thresholds can
+differ greatly from MAX. Check masks on representative images before accepting
+a setting. Automatic thresholds can differ between images. There is no
+universal manual threshold for all microscopes or acquisition settings.
+
+Invalid answers repeat the question. Enter `q` at a prompt or press Ctrl+C
+to cancel. Fiji runs **headlessly**: no analysis GUI should appear. Its first
+initialization downloads Maven components and can take longer than later
+runs. A completed run returns the terminal prompt and records a final status.
+
+For repeatable, noninteractive use, specify all choices and `--yes`:
+
+```bash
+shg2_intden_assay -i my_input_paths.json --channel 1 --projection max --threshold-mode auto --yes
+```
+
+Manual syntax examples, with an unlimited or finite upper bound:
+
+```bash
+shg2_intden_assay -i my_input_paths.json --channel 1 --projection sum --threshold 2000 --yes
+shg2_intden_assay -i my_input_paths.json --channel 1 --projection sum --threshold 2000 50000 --yes
+```
+
+The numbers above illustrate syntax, **not validated biological cutoffs**.
+`--threshold LOWER [UPPER]` selects manual mode; omitted UPPER is infinity.
+To analyze another channel, replace `--channel 1` with its number.
+
+The original Python file launchers also work after installation:
+
+```bash
+python code/shg1_lif_to_tif.py -i my_input_paths.json
+python code/shg2_intden_assay.py -i my_input_paths.json
+```
+
+## 6. Find and inspect the results
+
+Results are written **beside the source data**, not into the code folder.
+Each input folder has its own export and analysis results; there is no single
+automatically combined CSV across all listed folders. `<timestamp>` is UTC
+and `<id>` is a unique suffix in the examples below.
+
+| Stage | Output directory |
+|---|---|
+| LIF export | `<input>/output_<folder>_<timestamp>_<id>/` |
+| SHG analysis | `<selected export>/channel_<N>/Mask_Intensity_Area_Results_<timestamp>_<id>/` |
+
+**Inside the export directory:**
+
+| Relative path | Contents |
+|---|---|
+| `channel_1/<image>.tif` (and other channels) | Native-size grayscale Z-stack; one scene/tile/channel per TIFF |
+| `channel_1/<image>.tif.json` | Calibration, dimensions, source metadata and checksums |
+| `Metadata/<source>.xml` | Complete original LIF XML header |
+| `run_status.json`, `run.log` | Completion audit and processing messages |
+
+**Inside each SHG result directory, after a successful analysis:**
+
+| Relative path | What it looks like / what to use it for |
+|---|---|
+| `<image>_processed.tif` | One grayscale 2D MAX or SUM projection, retaining the source XY size |
+| `Masks/<image>_mask.tif` | An 8-bit binary image: white selected signal on black background |
+| `Masked_Images/<image>_masked.tif` | Masked signal preview with two smoothing operations and contrast enhancement; use for visual inspection |
+| `Tables/All_area_measurements.csv` | One row per successfully analyzed TIFF, with areas, intensities and processing metadata |
+| `Metadata/<image>.json` | Source provenance, calibration and the corresponding measurements |
+| `run_status.json`, `run.log` | Selected export, parameters, per-image outcomes and errors |
+
+Install the optional [Fiji desktop viewer](https://imagej.net/software/fiji/)
+to inspect scientific TIFFs. Open a TIFF with **File → Open**, use the stack
+slider for exported Z-stacks and compare the projection with its mask. Check
+dimensions and sampling in **Image → Properties**. A 32-bit SUM image may
+look dark with its initial display range; adjust **Image → Adjust →
+Brightness/Contrast** for viewing without applying a pixel transformation or
+overwriting the audited file.
+
+Open the CSV in Excel, LibreOffice Calc or another table viewer; VS Code can
+also display it as text. When importing, use **comma** as the delimiter and
+**dot** as the decimal separator. The file contains measurements, not a
+formatted report, statistical comparisons or automatically generated plots.
+
+### Example of numerical results
+
+The following is an **illustrative calculation**, not experimental data. A
+7 × 5-pixel image has six retained signal pixels and sampling of
+0.5 × 0.25 µm/pixel. At each of those six positions, three slices have
+intensities 10, 20 and 30, and the selected threshold retains the signal.
+
+| CSV field | MAX example | SUM example |
+|---|---:|---:|
+| `Original_Width_px` / `Original_Height_px` | 7 / 5 | 7 / 5 |
+| `Total_Area_px2` | 6 | 6 |
+| `Total_Area_um2` | 0.75 | 0.75 |
+| `Image_Area_px2` | 35 | 35 |
+| `Image_Area_um2` | 4.375 | 4.375 |
+| `Area_Fraction_percent` | 17.1429 | 17.1429 |
+| `Mean_Intensity` | 30 | 60 |
+| `Integrated_Density_raw` | 180 | 360 |
+| `Integrated_Density_um2` | 22.5 | 45 |
+
+For example, 6 × 0.5 × 0.25 = **0.75 µm²**. Areas are reported in pixel² and
+µm²; intensity is not converted into a length. Physical measurements remain
+blank when trustworthy XY calibration is missing.
+
+### Check before using a result table
+
+1. Confirm `SUCCESS` in both export and analysis `run_status.json` files.
+   Review counts and errors; a CSV alone does not prove a complete run.
+2. Check that the recorded `export_run` is the export you intended to use.
+3. Compare the TIFF dimensions with the original data and confirm the SHG
+   channel. A width or height of 1024 is valid if it was the original size.
+4. Inspect masks across representative conditions for missed signal or
+   background selection. Measurements use unsmoothed masked pixels, not the
+   smoothed preview.
+5. Before interpreting µm², check `Calibration_Status`, `Pixel_Width_um`
+   and `Pixel_Height_um` against the acquisition metadata.
+6. Keep acquisition, Z sampling, projection and threshold policies consistent
+   across comparisons. These are projected 2D areas, not 3D collagen volume.
+
+## 7. Later sessions and software updates
+
+For each new terminal session:
+
+```bash
+cd ~/projects/MCA-tools
 conda activate mca_tools
-shg1_lif_to_tif -i input_paths.json
-shg2_intden_assay -i input_paths.json
 ```
 
-SHG asks for MAX/SUM, automatic/manual thresholding and start confirmation.
-Invalid answers repeat the question. `q`, Ctrl+C and end-of-input cancel.
-For automated use, supply all choices and `--yes`:
+Use the existing successful export when trying another SHG setting; rerunning
+LIF export is unnecessary unless the source data or export software changed.
+Each analysis creates a new result directory. After finishing, you may run
+`conda deactivate`.
+
+To update the software, close active analyses, preserve your experiment JSON
+and results, and run from the project root:
 
 ```bash
-shg2_intden_assay -i input_paths.json --projection max --threshold-mode auto --yes
-shg2_intden_assay -i input_paths.json --projection sum --threshold 2000 --yes
-shg2_intden_assay -i input_paths.json --projection sum --threshold 2000 50000 --yes
+conda run -n base git pull --ff-only
+conda activate mca_tools
+python -m pip install .
+python -m pip check
 ```
 
-These numeric thresholds illustrate syntax, not validated biological cutoffs.
-`--threshold LOWER [UPPER]` selects manual thresholding; the default upper
-bound is infinity. Automatic thresholding retains Moments. `--channel N`
-selects the exported `channel_N` folder; the default is 1.
-
-The direct launchers remain available:
-
-```bash
-python code/shg1_lif_to_tif.py -i input_paths.json
-python code/shg2_intden_assay.py -i input_paths.json
-```
+If an update changes `environment.yaml`, follow that update's environment
+instructions as well. Do not mix software versions within a comparison set
+without reprocessing or assessing the effect. Record the version and exact
+Git commit with `shg2_intden_assay --version` and
+`conda run -n base git rev-parse HEAD`. Archive the command, input JSON and run
+metadata with the experiment. A protocol-ready methods text is provided in
+[docs/protocols_io.md](docs/protocols_io.md).
 
 ## Native pixels and metadata
 
@@ -109,12 +449,7 @@ default scale. ND2 uses Bio-Formats and its first image series.
 The existing masked preview still receives two smoothing operations and
 contrast enhancement. Measurements use the unsmoothed masked pixels.
 
-## Outputs and selecting an export
-
-| Stage | Location |
-|---|---|
-| Export | `<input>/output_<folder>_<timestamp>_<id>/channel_<N>/` |
-| SHG | `<selected export>/channel_<N>/Mask_Intensity_Area_Results_<timestamp>_<id>/` |
+## Selecting an export
 
 Every run has a unique UTC timestamp/random suffix; earlier runs are never
 reused or overwritten. Each has `run.log` and `run_status.json`.
@@ -208,10 +543,37 @@ calibration, zero signal and multiple folders.
 
 Local validation used real headless ImageJ1 1.54p with ij1-patcher and a public
 [readlif LIF fixture](https://github.com/Arcadia-Science/readlif/tree/master/tests/artifacts/xyzt-example).
-Full initial Fiji/Maven resolution and real ND2 files still require their own
-integration validation. GitHub Actions defines Linux/macOS package checks and
-full pinned-Fiji checks on Linux; workflow definitions alone do not establish
-a successful run.
+For code commit `fef7a6f`, the
+[19 October 2026 GitHub Actions run](https://github.com/alexdolskii/MCA-tools/actions/runs/39344053874)
+passed both Linux and macOS Python jobs. The Fiji job failed before image
+analysis: PyImageJ 1.8.0 raised `UnboundLocalError` for `major_version` in
+`_guess_java_version()` when starting with Java fetching disabled. Therefore
+full pinned-Fiji operation is **not validated and currently has a known
+startup blocker**. Real ND2 data and Windows/WSL also require their own
+integration validation. Check newer [Actions runs](https://github.com/alexdolskii/MCA-tools/actions)
+when this issue is fixed; an environment installation or a local ImageJ1-only
+test does not substitute for the complete Fiji check.
+
+## Troubleshooting
+
+| Symptom | What to check or do |
+|---|---|
+| `conda: command not found` | Reopen Terminal and VS Code after Miniforge installation. If shell initialization was skipped and the default location was used, run `~/miniforge3/bin/conda init zsh` on macOS, or `~/miniforge3/bin/conda init bash` for Bash on Linux/WSL, then reopen the terminal. Adapt the path/shell if different. |
+| Environment `mca_tools` already exists | Activate it. Do not repeat environment creation for every run. |
+| `shg1_lif_to_tif` or `shg2_intden_assay` not found | Run `conda activate mca_tools`, then `python -m pip install .` from the project root. Verify `sys.executable`. |
+| Python imports fail or VS Code uses another interpreter | Select `mca_tools` in VS Code and explicitly activate it in the terminal; run `python -m pip check`. |
+| Input JSON / folder error | Save valid JSON; replace example paths with existing folders. In WSL use Linux paths such as `/mnt/d/...`, not `D:\...`. |
+| `NO_INPUT` | Put original `.lif` files directly in the listed folder. Export is not recursive. Files beginning with a dot are intentionally excluded. |
+| No verified `channel_N` export | Check stage 1 status, the channel number and file integrity. Re-export from original LIF if necessary. See the explicit legacy/partial options above. |
+| `UnboundLocalError` mentioning `major_version` at Fiji startup | Known issue in the pinned PyImageJ 1.8.0 startup path, reproduced in CI. It needs a software fix and a passing full Fiji check; changing image paths or thresholds will not resolve it. |
+| Other Java / Maven download errors | Check Java 11 and Maven in the active environment, then inspect `imagej.log` for the exact error. The first backend download needs network access to Maven repositories; institutional proxy/firewall settings may require local IT support. |
+| `MISSING_XY_CALIBRATION` or blank µm² fields | Check source metadata and re-export original LIF with the current exporter. Do not replace missing scale with an assumed value; pixel measurements remain available. |
+| `PARTIAL`, `FAILED` or interrupted run | Read `run.log` and per-input records in `run_status.json`. Check damaged inputs, available memory and writable disk space. Fix the cause before accepting the table. |
+| Projection looks black / mask looks unexpected | Inspect the raw projection in Fiji, its display range, selected channel and actual threshold bounds. Use the smoothed image only as a preview. |
+
+For a reproducible error report, include the command, MCA version, Git commit,
+OS, `run_status.json` and the relevant log excerpt. Review local paths and
+sample identifiers before posting them publicly.
 
 ## QuPath
 
