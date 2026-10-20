@@ -15,6 +15,40 @@ class ExportSelection:
     warnings: list[str]
 
 
+def select_tiff_inputs(paths):
+    """Group explicit TIFFs and nonrecursive folders without counting twice."""
+    groups = {}
+    seen = set()
+    for path in paths:
+        directory = path if path.is_dir() else path.parent
+        files = (
+            image_files(path, {".tif", ".tiff"}) if path.is_dir() else [path]
+        )
+        selected = groups.setdefault(directory, [])
+        for file in files:
+            if file.name.startswith(".") or file.suffix.lower() not in {
+                ".tif",
+                ".tiff",
+            }:
+                raise ValueError(f"Expected a visible TIFF input: {file}")
+            resolved = file.resolve()
+            if resolved in seen:
+                raise ValueError(
+                    f"Repeated TIFF input (overlapping JSON entries): {file}"
+                )
+            seen.add(resolved)
+            selected.append(file)
+    return [
+        ExportSelection(
+            directory,
+            sorted(files, key=lambda p: (p.name.casefold(), p.name)),
+            "EXTERNAL_TIFF",
+            [],
+        )
+        for directory, files in groups.items()
+    ]
+
+
 def validate_export(directory, channel=1, allow_partial=False):
     status_path = directory / "run_status.json"
     data = json.loads(status_path.read_text(encoding="utf-8"))

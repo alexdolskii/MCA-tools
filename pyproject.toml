@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mca-tools"
-version = "0.2.3"
+version = "0.2.4"
 description = "LIF export and SHG image analysis for the Multimodal Collagen Analysis Toolkit."
 readme = "README.md"
 requires-python = ">=3.10,<3.11"

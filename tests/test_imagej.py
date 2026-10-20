@@ -34,9 +34,10 @@ def test_installed_commands_complete_with_full_fiji(
     pixels[:, 1:3, 2:5] = np.array([10, 20, 30], dtype=np.uint16)[
         :, None, None
     ]
-    lif_path = lif_factory(source / "sample.lif", pixels)
-    with lif_path.open("ab") as stream:
-        stream.write(bytes(512))
+    for name in ("sample", "sample_MERGED"):
+        lif_path = lif_factory(source / f"{name}.lif", pixels)
+        with lif_path.open("ab") as stream:
+            stream.write(bytes(512))
     (source / "._sample.lif").write_bytes(b"ignored metadata")
     config = tmp_path / "input.json"
     config.write_text(json.dumps({"paths_to_files": [str(source)]}))
@@ -67,7 +68,7 @@ def test_installed_commands_complete_with_full_fiji(
     export = next(source.glob("output_*"))
     audit = json.loads((export / "run_status.json").read_text())
     assert audit["status"] == "SUCCESS"
-    assert audit["counts"]["selected"] == 1
+    assert audit["counts"]["selected"] == 2
     channel = export / "channel_1"
     metadata = json.loads(next(channel.glob("*.tif.json")).read_text())
     assert metadata["lif_structure"]["verified_zero_padding_bytes"] == 512
@@ -75,6 +76,8 @@ def test_installed_commands_complete_with_full_fiji(
     for method, expected_signal in (("max", 180), ("sum", 360)):
         result = run(
             "shg2_intden_assay",
+            "--input-source",
+            "export",
             "--projection",
             method,
             "--threshold",
@@ -93,13 +96,48 @@ def test_installed_commands_complete_with_full_fiji(
         assert status["parameters"]["fiji_endpoint"] == FIJI_ENDPOINT
         for library in ("pyimagej", "scyjava", "jgo", "imagej1", "java"):
             assert status["software"][library] not in (None, "not installed")
-        table = pd.read_csv(output / "Tables" / "All_area_measurements.csv")
+        table = pd.read_csv(
+            output / "Tables" / "Area_measurements_individual.csv"
+        )
+        merged = pd.read_csv(
+            output / "Tables" / "Area_measurements_merged.csv"
+        )
+        assert len(merged) == 1
+        assert merged.iloc[0]["Image_Group"] == "merged"
+        assert status["counts"]["selected"] == 2
         assert len(table) == 1
         row = table.iloc[0]
         assert row["Total_Area_px2"] == 6
         assert row["Total_Area_um2"] == pytest.approx(0.75)
         assert row["Integrated_Density_raw"] == expected_signal
         assert row["Projection_Method"] == method.upper()
+
+    # Independent TIFF mode must work through the real installed worker too.
+    external = tmp_path / "external"
+    external.mkdir()
+    tiff = external / "single.tif"
+    tifffile.imwrite(
+        tiff,
+        pixels,
+        imagej=True,
+        metadata={"axes": "ZYX", "unit": "um", "spacing": 2},
+        resolution=(2, 4),
+    )
+    config.write_text(json.dumps({"paths_to_files": [str(tiff)]}))
+    run(
+        "shg2_intden_assay",
+        "--input-source",
+        "tiff",
+        "--projection",
+        "max",
+        "--threshold",
+        "1",
+        "--yes",
+    )
+    result = next(external.glob("Mask_Intensity_Area_Results_*"))
+    table = pd.read_csv(result / "Tables" / "Area_measurements_individual.csv")
+    assert table.iloc[0]["Input_Source"] == "tiff"
+    assert table.iloc[0]["Total_Area_um2"] == pytest.approx(0.75)
 
 
 def process(
@@ -223,6 +261,7 @@ def test_two_folders_share_one_fiji_lifecycle_and_record_partial_failure(
         (channel / "._valid.tif").write_bytes(b"ignored")
         folders.append(folder)
     args = SimpleNamespace(
+        input_source="export",
         input=tmp_path / "input.json",
         projection="max",
         threshold_mode="manual",
@@ -243,4 +282,128 @@ def test_two_folders_share_one_fiji_lifecycle_and_record_partial_failure(
         assert data["status"] == "PARTIAL"
         assert data["counts"]["selected"] == 2
         assert data["counts"]["succeeded"] == data["counts"]["failed"] == 1
-        assert (result / "Tables" / "All_area_measurements.csv").is_file()
+        assert (
+            result / "Tables" / "Area_measurements_individual.csv"
+        ).is_file()
+
+
+@pytest.mark.parametrize("dtype", [np.uint8, np.uint16, np.float32])
+@pytest.mark.parametrize("method", ["max", "sum"])
+def test_auto_threshold_keeps_bright_signal_and_native_values(
+    native_imagej, tmp_path, dtype, method
+):
+    from mca_tools.shg_analysis import process_image
+
+    pixels = np.full((2, 20, 30), 5, dtype=dtype)
+    pixels[:, 5:10, 8:14] = 200
+    path = tmp_path / "bright.tif"
+    tifffile.imwrite(path, pixels, imagej=True, metadata={"axes": "ZYX"})
+    run = Run(tmp_path, "auto", "shg_analysis", [path], {})
+    with run:
+        for name in ("Tables", "Masks", "Masked_Images", "Metadata"):
+            (run.directory / name).mkdir()
+        row, outputs = process_image(path, run, method, "auto", None, "tiff")
+        run.record_success(run.data["images"][0], outputs)
+    mask = tifffile.imread(run.directory / "Masks" / "bright_mask.tif")
+    expected = np.zeros((20, 30), dtype=np.uint8)
+    expected[5:10, 8:14] = 255
+    np.testing.assert_array_equal(mask, expected)
+    assert row["Particle_Count"] == 1
+    assert row["Total_Area_px2"] == 30
+    assert row["Integrated_Density_raw"] == 30 * (
+        200 if method == "max" else 400
+    )
+    assert row["Threshold_Method"] == "Moments dark"
+    assert row["Total_Area_um2"] is None
+
+
+@pytest.mark.parametrize("files_only", [False, True])
+def test_independent_tiffs_split_merged_rows_and_audit_failures(
+    native_imagej, tmp_path, monkeypatch, files_only
+):
+    from mca_tools import shg_analysis
+
+    @contextmanager
+    def reuse(_logger):
+        yield
+
+    monkeypatch.setattr(shg_analysis, "session", reuse)
+    folder = tmp_path / "raw_tiffs"
+    folder.mkdir()
+    paths = []
+    for name in ("single", "sample_MeRgEd"):
+        path = folder / f"{name}.tif"
+        tifffile.imwrite(
+            path,
+            np.full((2, 5, 7), 10, dtype=np.uint16),
+            imagej=True,
+            metadata={"axes": "ZYX", "unit": "um"},
+            resolution=(2, 4),
+        )
+        paths.append(path)
+    broken = folder / "broken.tif"
+    broken.write_bytes(b"invalid TIFF")
+    paths.append(broken)
+    (folder / "._single.tif").write_bytes(b"ignored")
+    args = SimpleNamespace(
+        input_source="tiff",
+        input=tmp_path / "input.json",
+        projection="sum",
+        threshold_mode="manual",
+        threshold=(1, 100),
+        channel=None,
+        allow_partial_export=False,
+        allow_legacy_export=False,
+    )
+    assert (
+        shg_analysis.run_analysis(paths if files_only else [folder], args) == 1
+    )
+    result = next(folder.glob("Mask_Intensity_Area_Results_*"))
+    status = json.loads((result / "run_status.json").read_text())
+    assert status["status"] == "PARTIAL"
+    assert status["counts"]["selected"] == 3
+    assert status["counts"]["succeeded"] == 2
+    assert status["counts"]["failed"] == 1
+    assert status["parameters"]["export_run"] is None
+    assert not (result / "Tables" / "All_area_measurements.csv").exists()
+    for group, name in (
+        ("individual", "single.tif"),
+        ("merged", "sample_MeRgEd.tif"),
+    ):
+        table = pd.read_csv(
+            result / "Tables" / f"Area_measurements_{group}.csv"
+        )
+        assert len(table) == status["summaries"][group]["rows"] == 1
+        row = table.iloc[0]
+        assert row["Image_Filename"] == name
+        assert row["Image_Group"] == group
+        assert row["Input_Source"] == "tiff"
+        assert row["Total_Area_um2"] == pytest.approx(35 * 0.125)
+        assert row["Integrated_Density_raw"] == 35 * 20
+
+
+def test_empty_independent_folder_is_recorded_without_starting_fiji(
+    tmp_path, monkeypatch
+):
+    from mca_tools import shg_analysis
+
+    def unexpected(_logger):
+        raise AssertionError("No JVM should start for an empty inventory")
+
+    monkeypatch.setattr(shg_analysis, "session", unexpected)
+    args = SimpleNamespace(
+        input_source="tiff",
+        input=tmp_path / "input.json",
+        projection="max",
+        threshold_mode="auto",
+        threshold=None,
+        channel=None,
+        allow_partial_export=False,
+        allow_legacy_export=False,
+    )
+    assert shg_analysis.run_analysis([tmp_path], args) == 1
+    result = next(tmp_path.glob("Mask_Intensity_Area_Results_*"))
+    record = json.loads((result / "run_status.json").read_text())
+    assert record["status"] == "FAILED"
+    assert record["counts"]["selected"] == 0
+    assert "No TIFF inputs" in record["error"]

@@ -7,13 +7,13 @@ Implementations live in `mca_tools`; QuPath is a separate workflow.
 | Module | Responsibility |
 |---|---|
 | `cli.py` | Lightweight arguments, validated prompts and command dispatch |
-| `config.py` | Input JSON and folder validation |
+| `config.py` | Input JSON, folder and explicit TIFF path validation |
 | `files.py` | Shared inventories, safe names, hashes and atomic JSON |
 | `lif_export.py` | Native LIF pixels, TIFF calibration and metadata export |
 | `lif_reader.py` | Bounded read-only LIF parsing, block checks and verified zero-tail handling |
 | `calibration.py` | Explicit spatial units and dual-unit result columns |
-| `metadata.py` | TIFF/OME/ND2 physical metadata without guessed scales |
-| `discovery.py` | Latest verified complete or explicitly allowed partial export |
+| `metadata.py` | TIFF dimensions/type checks and TIFF/OME/ND2 physical metadata without guessed scales |
+| `discovery.py` | Verified export selection or nonrecursive TIFF grouping with duplicate rejection |
 | `shg_analysis.py` | Per-image SHG workflow and result tables |
 | `shg_imagej.py` | Projection, masks and TIFF saving |
 | `run.py` | Unique result directories, logs and image outcomes |
@@ -29,9 +29,18 @@ Implementations live in `mca_tools`; QuPath is a separate workflow.
 - Never skip unknown LIF blocks. Accept a zero tail only after checking every
   trailing byte and agreement with XML-declared memory sizes. Preserve the
   complete original source checksum and record the bounded-reader layout.
-- Keep scientific changes separate from structural edits. Preserve Moments,
-  manual thresholding, particle limits and the positive-intensity measurement
+- Keep scientific changes separate from structural edits. Use `Moments dark`
+  to select bright SHG on dark background (explicitly corrected in 0.2.4).
+  Preserve manual thresholding, particle limits and the positive-intensity measurement
   floor unless a scientific change has been explicitly agreed and tested.
+- Ask for `export` or `tiff` before analysis settings, or require an explicit
+  `--input-source` in noninteractive runs. Both routes call the same processing
+  function. Reject unsupported TIFF axes/types rather than silently selecting
+  the first channel/timepoint. Record unlabelled-page Z assumptions.
+- Partition successful rows by case-insensitive `merged` in the filename.
+  Write both `Area_measurements_individual.csv` and
+  `Area_measurements_merged.csv`, including headers for an empty group;
+  record checksums/counts in `summaries`. Do not duplicate rows across tables.
 - Store both pixel and micrometer-derived measurements. Missing or invalid
   physical calibration stays missing. Intensity is never labelled as length.
 - Use one filtered inventory for counters and processing. Exclude dot files,
@@ -86,7 +95,8 @@ JSON paths, CLI startup and owned temporary storage. Native tests use
 rectangular, anisotropic, 8/16-bit and zero-signal images, MAX/SUM, saved
 masks/projections, and two-folder partial completion. A full-Fiji test also
 executes installed export and MAX/SUM commands in fresh processes, verifies
-Bio-Formats availability and calibrated measurements, and requires normal
+Bio-Formats availability, independent TIFF input, separate merged tables and
+calibrated measurements, and requires normal
 worker exit. CI runs these checks with Java 11 on Linux and macOS.
 
 The pytest configuration disables its `faulthandler` plugin, as recommended

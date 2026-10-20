@@ -23,6 +23,11 @@ def parser_for(command):
         help="JSON with paths_to_files (relative paths use the JSON directory)",
     )
     if command == "shg2_intden_assay":
+        parser.add_argument(
+            "--input-source",
+            choices=("export", "tiff"),
+            help="Continue an MCA LIF export or analyze independent TIFF inputs",
+        )
         parser.add_argument("--projection", choices=("max", "sum"))
         parser.add_argument("--threshold-mode", choices=("auto", "manual"))
         parser.add_argument(
@@ -35,8 +40,7 @@ def parser_for(command):
         parser.add_argument(
             "--channel",
             type=int,
-            default=1,
-            help="Exported channel folder (default: 1)",
+            help="Exported channel folder (export mode only; default: 1)",
         )
         parser.add_argument(
             "--yes", action="store_true", help="Skip the start confirmation"
@@ -82,6 +86,27 @@ def ask(question, choices=None, default=None):
 
 
 def analysis_settings(args):
+    if args.input_source is None:
+        if not sys.stdin.isatty():
+            raise ConfigurationError(
+                "Noninteractive analysis requires --input-source export or tiff"
+            )
+        choice = ask(
+            "Input source: 1/export (continue LIF export) or 2/tiff (independent TIFF)",
+            {"1", "2", "export", "tiff"},
+        )
+        args.input_source = "export" if choice in {"1", "export"} else "tiff"
+    if args.input_source == "tiff" and (
+        args.channel is not None
+        or args.allow_partial_export
+        or args.allow_legacy_export
+    ):
+        raise ConfigurationError(
+            "--channel and --allow-*-export apply only to --input-source export; "
+            "independent TIFFs must contain one SHG channel"
+        )
+    if args.input_source == "export" and args.channel is None:
+        args.channel = 1
     if not sys.stdin.isatty() and (
         args.projection is None
         or (args.threshold_mode is None and args.threshold is None)
@@ -123,9 +148,11 @@ def launch(command, argv=None):
     parser = parser_for(command)
     args = parser.parse_args(arguments)
     try:
-        folders = load_folders(args.input)
+        folders = load_folders(
+            args.input, allow_tiff_files=command == "shg2_intden_assay"
+        )
         if command == "shg2_intden_assay":
-            if args.channel < 1:
+            if args.channel is not None and args.channel < 1:
                 raise ConfigurationError("Channel numbers start at 1")
             if args.threshold is not None:
                 if args.threshold_mode == "auto":
@@ -142,6 +169,13 @@ def launch(command, argv=None):
 
             return run_export(folders, args.input.resolve())
         args = analysis_settings(args)
+        if args.input_source == "export" and any(
+            not folder.is_dir() for folder in folders
+        ):
+            raise ConfigurationError(
+                "Export mode requires original LIF folders in JSON; "
+                "use --input-source tiff for individual TIFFs"
+            )
         from .shg_analysis import run_analysis
 
         return run_analysis(folders, args)

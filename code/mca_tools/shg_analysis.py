@@ -12,11 +12,11 @@ import pandas as pd
 import scyjava as sj
 
 from .calibration import Calibration, measurement_columns
-from .discovery import select_export
+from .discovery import select_export, select_tiff_inputs
 from .fiji_config import FIJI_ENDPOINT
 from .files import output_record, sha256_file, write_json
 from .imagej import session
-from .metadata import nd2_calibration, tiff_calibration
+from .metadata import nd2_calibration, tiff_calibration, tiff_layout
 from .run import Run
 from .shg_imagej import (
     ImageProcessingError,
@@ -143,15 +143,42 @@ def analyze_particles(original, mask, masked_path):
 
 
 def process_image(
-    path, run, projection_method, threshold_mode, threshold_range
+    path,
+    run,
+    projection_method,
+    threshold_mode,
+    threshold_range,
+    input_source="export",
 ):
     IJ = sj.jimport("ij.IJ")
     source = channel = projection = saved = mask = None
     try:
+        layout = (
+            tiff_layout(path)
+            if path.suffix.lower() in {".tif", ".tiff"}
+            else None
+        )
         source = open_image(path)
         width, height = int(source.getWidth()), int(source.getHeight())
         original_depth = int(source.getBitDepth())
         nz, nt = int(source.getNSlices()), int(source.getNFrames())
+        if layout:
+            if (
+                [nz, height, width] != layout["shape_zyx"]
+                or source.getNChannels() != 1
+                or nt != 1
+                or original_depth
+                != {"uint8": 8, "uint16": 16, "float32": 32}[layout["dtype"]]
+            ):
+                raise ImageProcessingError(
+                    "ImageJ TIFF interpretation differs from its dimensions/type; "
+                    "export an ImageJ-compatible single-channel YX/ZYX TIFF"
+                )
+            if layout["assumed_z_stack"]:
+                run.logger.warning(
+                    "ASSUMED_Z_STACK | %s | unlabelled pages treated as Z slices",
+                    path.name,
+                )
         calibration, source_metadata = input_calibration(path, source)
         calibration.apply(source)
         if not calibration.calibrated:
@@ -173,6 +200,8 @@ def process_image(
             "source_timepoints": nt,
             "selected_timepoint": 0,
             "source_metadata": source_metadata,
+            "input_source": input_source,
+            "tiff_layout": layout,
         }
         projection.setProperty("Info", json.dumps(provenance))
         output = run.directory / f"{path.stem}_processed.tif"
@@ -221,6 +250,10 @@ def process_image(
                 count, area, raw, width, height, calibration
             ),
             "Image_Filename": path.name,
+            "Input_Source": input_source,
+            "Image_Group": "merged"
+            if "merged" in path.name.casefold()
+            else "individual",
             "Original_Bit_Depth": original_depth,
             "Original_Width_px": width,
             "Original_Height_px": height,
@@ -230,6 +263,9 @@ def process_image(
             "Source_Timepoints": nt,
             "Selected_Timepoint": 0,
             "Threshold_Mode": threshold_mode,
+            "Threshold_Method": "Moments dark"
+            if threshold_mode == "auto"
+            else "manual",
             "Threshold_Lower": float(
                 str(mask.getProperty("mca.threshold.lower"))
             ),
@@ -284,28 +320,39 @@ def _run_analysis(folders, args, contexts, logger):
     statuses = []
     initialized = False
     startup_error = None
-    for folder in folders:
+    external = args.input_source == "tiff"
+    selections = select_tiff_inputs(folders) if external else folders
+    for item in selections:
+        folder = item.directory if external else item
         # Selection failures also get a persistent run journal.
         selection = selection_error = None
         try:
-            selection = select_export(
-                folder,
-                args.channel,
-                args.allow_partial_export,
-                args.allow_legacy_export,
+            selection = (
+                item
+                if external
+                else select_export(
+                    folder,
+                    args.channel,
+                    args.allow_partial_export,
+                    args.allow_legacy_export,
+                )
             )
         except (OSError, ValueError) as error:
             selection_error = error
         files = selection.files if selection else []
         parent = (
             selection.directory / f"channel_{args.channel}"
-            if selection
+            if selection and not external
             else folder
         )
         parameters = {
             "input_json": str(args.input),
+            "input_source": args.input_source,
             "projection": args.projection,
             "threshold_mode": args.threshold_mode,
+            "threshold_method": "Moments dark"
+            if args.threshold_mode == "auto"
+            else "manual",
             "threshold_range": [
                 value if math.isfinite(value) else "inf"
                 for value in args.threshold
@@ -314,8 +361,12 @@ def _run_analysis(folders, args, contexts, logger):
             else None,
             "channel": args.channel,
             "fiji_endpoint": FIJI_ENDPOINT,
-            "export_run": str(selection.directory) if selection else None,
-            "export_status": selection.status if selection else None,
+            "export_run": str(selection.directory)
+            if selection and not external
+            else None,
+            "export_status": selection.status
+            if selection and not external
+            else None,
             "preserve_xy": True,
         }
         run = Run(
@@ -329,6 +380,10 @@ def _run_analysis(folders, args, contexts, logger):
             with run:
                 if selection_error:
                     raise selection_error
+                if not files:
+                    raise ValueError(
+                        f"No TIFF inputs directly inside {folder}"
+                    )
                 for warning in selection.warnings:
                     run.logger.warning(warning)
                 for name in ("Tables", "Masks", "Masked_Images", "Metadata"):
@@ -365,6 +420,7 @@ def _run_analysis(folders, args, contexts, logger):
                                 args.projection,
                                 args.threshold_mode,
                                 args.threshold,
+                                args.input_source,
                             )
                         except Exception as error:
                             run.record_failure(record, error)
@@ -375,17 +431,22 @@ def _run_analysis(folders, args, contexts, logger):
                                 "PROGRESS | saved=%d/%d", len(rows), len(files)
                             )
                     if rows:
-                        summary = (
-                            run.directory
-                            / "Tables"
-                            / "All_area_measurements.csv"
-                        )
-                        temporary = summary.with_suffix(".csv.tmp")
-                        pd.DataFrame(rows).to_csv(temporary, index=False)
-                        temporary.replace(summary)
-                        run.data["summary"] = output_record(
-                            summary, run.directory
-                        )
+                        table = pd.DataFrame(rows)
+                        run.data["summaries"] = {}
+                        for group in ("individual", "merged"):
+                            summary = (
+                                run.directory
+                                / "Tables"
+                                / f"Area_measurements_{group}.csv"
+                            )
+                            selected = table[table["Image_Group"] == group]
+                            temporary = summary.with_suffix(".csv.tmp")
+                            selected.to_csv(temporary, index=False)
+                            temporary.replace(summary)
+                            run.data["summaries"][group] = {
+                                **output_record(summary, run.directory),
+                                "rows": len(selected),
+                            }
         except Exception as error:
             # The Run context has saved the traceback and FAILED state.
             print(f"FAILED: {folder}: {error}", file=sys.stderr)

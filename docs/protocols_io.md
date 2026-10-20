@@ -1,4 +1,4 @@
-# Native-resolution SHG area and intensity analysis from Leica LIF files using MCA-tools
+# Native-resolution SHG area and intensity analysis from Leica LIF or independent TIFF files using MCA-tools
 
 This is a standalone text for a protocols.io draft. It has not been published
 to protocols.io. Copy the title, abstract, materials and numbered procedure
@@ -13,8 +13,15 @@ measurement definitions and validation status.
 
 ## Protocol status and version
 
-Documentation date: 20 October 2026. Software: MCA-tools 0.2.3.
-This release adds LIF block validation and read-only handling of verified
+Documentation date: 20 October 2026. Software: MCA-tools 0.2.4.
+This release adds a choice between continuing a Leica export and independently
+analyzing TIFF files. Both modes use the same measurements. Automatic
+thresholding now explicitly selects bright signal on a dark background
+(`Moments dark`), and images containing `merged` in their filename have a
+separate result table. Reassess or rerun earlier automatic-threshold analyses
+before combining them with this version; manual threshold bounds are unchanged.
+
+Version 0.2.3 added LIF block validation and read-only handling of verified
 zero-filled tails, avoiding readlif's misleading closed-file error.
 Unknown nonzero tails, truncated blocks and inconsistent memory sizes still
 stop export. The `LIF_ZERO_PADDING` log entry and `lif_structure` sidecar
@@ -46,17 +53,23 @@ integration testing does not substitute for experimental image quality control.
 
 ## Abstract
 
-This computational workflow exports Leica LIF microscopy data to TIFF
-Z-stacks and measures second-harmonic generation (SHG) signal area and
-intensity using MCA-tools. Export retains native XY dimensions, original
+This computational workflow measures second-harmonic generation (SHG) signal
+area and intensity using MCA-tools. Users can export Leica LIF data to TIFF
+Z-stacks or analyze compatible single-channel TIFFs from other systems directly.
+The independent TIFF route does not require a LIF file or a preceding MCA export.
+Export retains native XY dimensions, original
 pixel values, available spatial calibration and source metadata. A maximum
 or sum Z-projection is thresholded to obtain a binary mask. Measurements are
-calculated from unsmoothed masked projection pixels and reported in a CSV
-table. Areas are provided in pixel² and, when trustworthy XY calibration is
+calculated from unsmoothed masked projection pixels. Automatic thresholding
+uses ImageJ Moments with an explicit dark-background setting; manual bounds
+are also available. Results for filenames containing `merged` are separated
+from other images into two CSV tables with identical measurements.
+Areas are provided in pixel² and, when trustworthy XY calibration is
 available, µm². Per-image metadata, processing parameters, checksums and run
 logs support traceability.
 
-The workflow analyzes timepoint 0 and reports projected two-dimensional
+LIF export selects timepoint 0; independent TIFFs must contain one channel
+and one timepoint. The workflow reports projected two-dimensional
 measurements. It does not quantify three-dimensional collagen volume or
 automatically perform group statistics. The QuPath workflow is described
 in the companion protocol linked above and is not a stage of this SHG procedure.
@@ -79,7 +92,7 @@ image analysis; spatial calibration; Conda; MCA-tools.
 | MCA-tools | Repository: https://github.com/alexdolskii/MCA-tools |
 | Fiji desktop, optional viewer | Opens TIFF stacks, projections and masks for inspection |
 | CSV viewer | Excel, LibreOffice Calc or equivalent; VS Code can also show CSV text |
-| Input data | Original Leica `.lif` files, with acquisition metadata including pixel dimensions and the identity of the SHG channel |
+| Input data | Original Leica `.lif` files or compatible single-channel grayscale SHG `.tif`/`.tiff` files; acquisition records identifying the signal channel and spatial sampling |
 
 The environment file specifies Python 3.10, OpenJDK 11 and Maven 3.9.9. The
 package pins NumPy 1.26.4, PyImageJ 1.5.0, readlif 0.6.5, scyjava 1.10.0,
@@ -210,7 +223,7 @@ python -m pip freeze > mca_python_packages_record.txt
 conda run -n base git rev-parse HEAD > mca_commit_record.txt
 ```
 
-These checks do not start Fiji. Use MCA 0.2.3 with the dependencies declared
+These checks do not start Fiji. Use MCA 0.2.4 with the dependencies declared
 by that checkout. When upgrading from the Python 3.12 environment of MCA
 0.2.0/0.2.1, create a fresh environment and preserve the old one:
 
@@ -256,6 +269,10 @@ necessary input configuration.
 
 ### 6. Organize inputs and save the JSON configuration
 
+Choose one route. For Leica data, follow steps 6–8 below. For independent
+TIFF input, use the alternative configuration at the end of step 6 and then
+proceed directly to step 9.
+
 Place original LIF files directly in writable experiment folders outside
 the software checkout. Processing is not recursive. For an initial trial,
 use a separate folder containing copies of a few representative files.
@@ -282,6 +299,38 @@ Absolute paths are recommended. Relative entries are resolved against the
 JSON's directory. Hidden files, including macOS `._*`, are ignored and not
 counted as inputs. Missing, hidden or repeated input folders are rejected.
 
+**Alternative: independent TIFF input.** Create `tiff_input_paths.json` with
+individual files or folders containing TIFFs:
+
+```json
+{
+  "paths_to_files": [
+    "/Volumes/ExampleDrive/Condition_A/SHG_sample_1.tif",
+    "/Volumes/ExampleDrive/Condition_B/SHG_TIFFs"
+  ]
+}
+```
+
+Use original intensity images, not binary masks, smoothed previews or RGB
+screenshots. Supported storage types are uint8, uint16 and float32. Each TIFF
+must contain one image series at one resolution, one channel and one
+timepoint, with YX or ZYX dimensions. Export the desired SHG channel/timepoint
+separately from multichannel/time-series files. ImageJ's decoded dimensions
+and pixel type must agree with the TIFF header. Unlabelled multipage images
+are treated as Z-stacks and generate `ASSUMED_Z_STACK`; verify that the pages
+really are Z slices. Support depends on the TIFF layout, not just its extension.
+
+No LIF, MCA export folders or export completion record is required. Calibration
+is read from supported OME, ImageJ or TIFF resolution metadata. Missing XY
+scale leaves µm² fields blank while pixel measurements remain available.
+An existing MCA sidecar is still validated against the TIFF.
+
+Folder discovery is nonrecursive and excludes hidden files, including `._*`,
+from processing and counts. Explicit hidden paths and repeated inputs are
+rejected. Do not list a TIFF both individually and through its parent folder.
+Explicit files in the same parent folder are grouped into one result run.
+Skip steps 7 and 8 for this route.
+
 ### 7. Export LIF data to calibrated TIFF stacks
 
 ```bash
@@ -295,6 +344,8 @@ printed output directory:
 
 It contains `channel_1/`, additional channel directories as appropriate,
 TIFF/JSON pairs, `Metadata/`, `run.log` and `run_status.json`.
+All channels are exported by number; the program does not automatically
+identify SHG or transmitted-light microscopy. Verify channel identity yourself.
 Timestamps use UTC and the suffix distinguishes separate runs.
 
 ### 8. Verify export before proceeding
@@ -322,18 +373,20 @@ exported channel represents SHG; channel 1 is only the
 default. For channel 1, run:
 
 ```bash
-shg2_intden_assay -i my_input_paths.json --channel 1
+shg2_intden_assay -i my_input_paths.json
 ```
 
-The JSON continues to list the original folders. For each one, MCA selects
+For the Leica route, select `export` at the first prompt. The JSON continues
+to list the original folders. For each one, MCA selects
 the newest verified successful export containing the requested channel.
 Check the selected `export_run` in the analysis metadata; if a newer export
 is incomplete or altered, an older valid export may be selected instead.
 
 | Question | Response and meaning |
 |---|---|
+| Input source | Enter `export` / `1` to continue an MCA LIF export, or `tiff` / `2` for independent TIFF files/folders |
 | Projection | Enter `max` / `1` for a maximum Z-projection, or `sum` / `2` for a sum Z-projection |
-| Threshold mode | Enter `auto` for ImageJ Moments, or `manual` for explicit intensity bounds |
+| Threshold mode | Enter `auto` for ImageJ `Moments dark` (bright signal on dark background), or `manual` for explicit intensity bounds |
 | Manual bounds | Enter lower and upper thresholds in projection intensity units; Enter defaults to 0 and `inf` |
 | Start confirmation | Enter `yes` to proceed |
 
@@ -346,19 +399,36 @@ captures the intended signal.
 For a noninteractive MAX/Moments run:
 
 ```bash
-shg2_intden_assay -i my_input_paths.json --channel 1 --projection max --threshold-mode auto --yes
+shg2_intden_assay -i my_input_paths.json --input-source export --channel 1 --projection max --threshold-mode auto --yes
 ```
 
 A manual syntax example is:
 
 ```bash
-shg2_intden_assay -i my_input_paths.json --channel 1 --projection sum --threshold 2000 50000 --yes
+shg2_intden_assay -i my_input_paths.json --input-source export --channel 1 --projection sum --threshold 2000 50000 --yes
 ```
 
 **2000 and 50000 are illustrative values, not recommended biological
 cutoffs.** A single bound such as `--threshold 2000` leaves the upper bound
 unlimited. Replace `--channel 1` if another exported channel contains SHG.
 Record the complete command and the actual settings used.
+
+For independent TIFFs, use:
+
+```bash
+shg2_intden_assay -i tiff_input_paths.json
+```
+
+Choose `tiff` at the first prompt. Alternatively, specify all settings:
+
+```bash
+shg2_intden_assay -i tiff_input_paths.json --input-source tiff --projection max --threshold-mode auto --yes
+```
+
+Automated runs require an explicit `--input-source`. Do not supply `--channel`
+or either `--allow-*-export` option in TIFF mode. These options concern Leica
+export selection, not channels inside a TIFF. The two routes use the same
+projection, thresholding, measurement and output procedures.
 
 Fiji runs headlessly, without a GUI. Its initial Maven component download
 requires network access. Enter `q` at a prompt or press Ctrl+C to cancel.
@@ -371,18 +441,30 @@ For each selected export/channel, open:
 
 `<export>/channel_<N>/Mask_Intensity_Area_Results_<timestamp>_<id>/`
 
+For independent TIFF inputs, results are saved in
+`<TIFF parent folder>/Mask_Intensity_Area_Results_<timestamp>_<id>/`.
+
 | Output | Appearance and interpretation |
 |---|---|
 | `<image>_processed.tif` | Native-XY grayscale 2D projection |
 | `Masks/<image>_mask.tif` | White selected regions on a black background; 8-bit binary mask |
 | `Masked_Images/<image>_masked.tif` | Masked preview with two smoothing operations and contrast enhancement |
-| `Tables/All_area_measurements.csv` | One row per successfully analyzed TIFF |
+| `Tables/Area_measurements_individual.csv` | Successful images without `merged` in the filename |
+| `Tables/Area_measurements_merged.csv` | Successful images with `merged` anywhere in the filename, ignoring case |
 | `Metadata/<image>.json` | Calibration, source provenance and measurements |
 | `run_status.json` and `run.log` | Parameters, selected export, counts, per-image outcomes and errors |
 
 Require `SUCCESS` and reconcile counts with the expected TIFF inputs. A CSV
 can exist for a partial run; its presence does not establish completeness.
-Each listed input folder produces a separate result table.
+Each input parent folder produces its own pair of result tables.
+
+Each successful image appears in exactly one of the two tables; both tables
+use identical columns. An empty group has a header-only CSV. If no image
+succeeds, no measurement tables are written. Completion metadata records
+their checksums and row counts under `summaries`. The earlier
+`All_area_measurements.csv` filename is replaced in 0.2.4.
+The filename classification does not change calculations and does not prove
+that an image is a stitched mosaic. RGB composites remain unsuitable inputs.
 
 In Fiji, compare projections with their masks and inspect background
 selection or missed signal across representative conditions. Use
@@ -394,16 +476,17 @@ smoothed preview is for inspection.
 
 ### 11. Read the measurement table
 
-Import `All_area_measurements.csv` with a comma delimiter and dot decimal
+Import the individual and merged CSVs separately with a comma delimiter and dot decimal
 separator into a table viewer. Retain the original CSV as the analysis
 record. The main fields are:
 
 | Field | Definition |
 |---|---|
 | `Image_Filename` | Analyzed input TIFF identifier |
+| `Input_Source`, `Image_Group` | `export` or `tiff`; `individual` or `merged` |
 | `Original_Width_px`, `Original_Height_px` | Native image dimensions |
 | `Pixel_Width_um`, `Pixel_Height_um`, `Pixel_Depth_um` | Available physical sampling |
-| `Particle_Count` | Number of measured positive-signal particles |
+| `Particle_Count` | Number of connected measured regions; not a count of individual collagen fibers |
 | `Total_Area_px2`, `Total_Area_um2` | Sum of measured particle areas |
 | `Average_Particle_Area_px2`, `Average_Particle_Area_um2` | Total measured area divided by count; zero when count is zero |
 | `Image_Area_px2`, `Image_Area_um2` | Full projected image area |
@@ -413,6 +496,7 @@ record. The main fields are:
 | `Integrated_Density_um2` | Raw integrated signal × physical pixel area, in signal·µm² |
 | `Calibration_Status`, `Calibration_Source` | Presence and source of trustworthy XY scale |
 | `Projection_Method`, `Threshold_Mode`, `Threshold_Lower`, `Threshold_Upper` | Recorded processing choices and actual threshold bounds |
+| `Threshold_Method` | `Moments dark` or `manual` |
 
 For pixel width `sx` and pixel height `sy`, both in µm/pixel:
 
@@ -454,7 +538,7 @@ For example, measured physical area is `6 × 0.5 × 0.25 = 0.75 µm²`.
 
 ### 13. Archive the analysis and repeat consistently
 
-Retain original LIFs, the input JSON, exported TIFFs and sidecars, source
+Retain original LIFs or independent source TIFFs, the input JSON, exported TIFFs and sidecars, source
 XML, all result directories, exact commands, software version/commit and
 environment records. No group statistics or plots are generated automatically.
 Document any subsequent table combination, exclusions or statistical analysis
@@ -476,8 +560,8 @@ the affected data.
 
 ## Quality-control criteria and limitations
 
-- Both stages must finish successfully for the standard complete workflow;
-  review per-input outcomes and the selected export.
+- Analysis must finish successfully; the Leica route additionally requires
+  a successful export. Review per-input outcomes and the selected source mode.
 - Confirm channel identity, original XY dimensions and available calibration
   against acquisition records before reporting µm².
 - Assess masks against projections. Quantification includes positive masked
@@ -489,6 +573,11 @@ the affected data.
   for that overlap.
 - Neither projection nor export resamples XY or normalizes intensities.
   Acquisition settings and Z sampling remain relevant to comparisons.
+- Separate `merged` and individual tables retain specimen mapping; do not
+  treat a stitched image and its component fields as independent replicates.
+- Automatic threshold polarity changed in 0.2.4. Inspect masks and reassess
+  earlier automatic results before combining versions. MAX and SUM require
+  consistent acquisition/projection policies and separately assessed thresholds.
 - Old exports that lost calibration cannot recover it from pixel arrays
   alone. Re-export the original LIF data. Legacy or partial exports require
   explicit CLI options and do not meet the standard complete-run criteria.
@@ -507,6 +596,9 @@ the affected data.
 | Invalid JSON or missing folder | Save valid JSON and replace example paths. Use paths visible inside the active operating system, including `/mnt/d/...` in WSL. |
 | No input images | Place LIFs directly in the listed folder. Hidden `._*` files are intentionally ignored. |
 | No verified export/channel | Review export status, channel number and file integrity; re-export original LIF if necessary. |
+| Independent TIFF reports missing export | Select `--input-source tiff` and use a JSON containing TIFF paths or folders; a preceding export is not required. |
+| TIFF has multiple channels/timepoints or unsupported axes/type | Export the selected SHG channel/timepoint as an ImageJ-compatible YX/ZYX uint8, uint16 or float32 TIFF. |
+| Older automatic mask selects dark background | Update to 0.2.4, rerun with the explicit bright-signal Moments policy and review the resulting masks before accepting the measurements. |
 | Closed-file error inside readlif | Update to MCA 0.2.3 and reinstall. The reader now handles verified zero tails and reports other structural problems with byte positions. If the new run fails, retain its log and check the original LIF in Leica LAS X or Fiji Bio-Formats without overwriting it. |
 | PyImageJ error mentioning `major_version` | Update MCA 0.2.0 to 0.2.1 or later, activate `mca_tools`, reinstall with `python -m pip install .` and restart the command. Verify versions with `python -m pip show mca-tools pyimagej scyjava jgo`. |
 | Other Java/Maven initialization failure | Verify Java 11 and Maven 3.9.9 in the active environment; update the Conda environment if Maven is 3.10. Inspect `~/.mca-tools/runs/<run_id>/imagej.log`; initial component downloads require network access. |

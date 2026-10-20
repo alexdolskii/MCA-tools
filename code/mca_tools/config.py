@@ -8,7 +8,7 @@ class ConfigurationError(ValueError):
     """The user supplied an invalid configuration or parameter."""
 
 
-def load_folders(path: Path) -> list[Path]:
+def load_folders(path: Path, *, allow_tiff_files=False) -> list[Path]:
     """Resolve relative entries against the JSON and reject duplicates."""
     path = Path(path).expanduser()
     if path.name.startswith("._"):
@@ -26,15 +26,24 @@ def load_folders(path: Path) -> list[Path]:
     folders = []
     for value in values:
         if not isinstance(value, str) or not value.strip():
-            raise ConfigurationError("Every input folder must be a string.")
+            raise ConfigurationError("Every input path must be a string.")
         folder = Path(value).expanduser()
+        if folder.name.startswith(".") and folder.name not in {".", ".."}:
+            raise ConfigurationError(f"Hidden input path: {folder}")
         if not folder.is_absolute():
             folder = path.parent / folder
         folder = folder.resolve()
         if folder.name.startswith("."):
             raise ConfigurationError(f"Hidden input folder: {folder}")
-        if not folder.is_dir():
-            raise ConfigurationError(f"Input folder does not exist: {folder}")
+        if not folder.is_dir() and not (
+            allow_tiff_files
+            and folder.is_file()
+            and folder.suffix.lower() in {".tif", ".tiff"}
+        ):
+            expected = "folder or TIFF file" if allow_tiff_files else "folder"
+            raise ConfigurationError(
+                f"Expected an existing {expected}: {folder}"
+            )
         if folder in folders:
             raise ConfigurationError(f"Repeated input folder: {folder}")
         folders.append(folder)

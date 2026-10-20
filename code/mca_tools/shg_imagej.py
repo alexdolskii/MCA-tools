@@ -82,12 +82,15 @@ def create_binary_mask(
 
     mask_image = source_image.duplicate()
     Prefs.blackBackground = True
+    # LUT polarity is display metadata; never invert the intensity pixels.
+    if mask_image.getProcessor().isInvertedLut():
+        mask_image.getProcessor().invertLut()
 
     if threshold_mode == "manual" and manual_threshold_range is not None:
         lower_value, upper_value = manual_threshold_range
         IJ.setThreshold(mask_image, lower_value, upper_value)
     else:
-        IJ.setAutoThreshold(mask_image, "Moments")
+        IJ.setAutoThreshold(mask_image, "Moments dark")
 
     lower = mask_image.getProcessor().getMinThreshold()
     upper = mask_image.getProcessor().getMaxThreshold()

@@ -4,11 +4,19 @@ Multimodal Collagen Analysis Toolkit
 
 MCA supports SHG microscopy and histological image analysis. The Python
 workflow exports Leica LIF images as calibrated TIFF Z-stacks and measures
-SHG area and intensity in its own `mca_tools` environment. The independent
+SHG area and intensity in its own `mca_tools` environment. Stage 2 also accepts
+independent single-channel TIFF images or Z-stacks from other systems. The independent
 [QuPath workflow](qupath_code/README.md) automates annotation export and
 colour-based area measurements in Herovici-stained brightfield images.
 
-**Version 0.2.3:** LIF export validates block boundaries and supports verified
+**Version 0.2.4:** stage 2 asks whether to continue a LIF export or analyze
+independent TIFF inputs. Automatic thresholding explicitly selects bright
+signal on a dark background (`Moments dark`). Individual and `merged` images
+are reported in separate CSVs with the same measurements. **Reassess or rerun
+automatic-threshold results from earlier versions:** their foreground
+polarity was not explicitly specified. Manual threshold bounds are unchanged.
+
+Since version 0.2.3, LIF export validates block boundaries and supports verified
 zero-filled tails in newer LIF files. It avoids readlif's misleading
 `I/O operation on closed file` / `seek of closed file` error and reports
 unsupported or incomplete blocks with their byte positions. Source files
@@ -147,7 +155,7 @@ shg2_intden_assay --version
 
 Expected: Python **3.10.x** from a path containing `envs/mca_tools`, no broken
 pip requirements, Java **11**, Maven **3.9.9** and MCA command help
-or version **0.2.3**. These checks do not start Fiji. The SHG backend is pinned
+or version **0.2.4**. These checks do not start Fiji. The SHG backend is pinned
 to `sc.fiji:fiji:2.14.0` in
 [fiji_config.py](code/mca_tools/fiji_config.py) and uses the environment's
 Java. A separate desktop Fiji installation is only a viewer and does not
@@ -196,12 +204,15 @@ Run button does not supply the required input JSON or analysis choices.
 
 ## 3. Prepare input folders
 
+Choose the Leica export route below, or skip stage 1 and use independent TIFF
+inputs as described at the end of this section.
+
 Keep original LIF files in writable experiment folders outside the code
 checkout. For the first trial, use a separate folder containing copies of a
 few representative LIFs. Export scans only the files directly inside each
 listed folder; it does not recurse into subfolders.
 
-In VS Code, create **`my_input_paths.json`** in the MCA-tools project root,
+In VS Code, create **`input_paths.json`** in the MCA-tools project root,
 using [input_paths.json](input_paths.json) as a template. Replace every example
 path with a real folder containing original LIF files:
 
@@ -230,6 +241,42 @@ directory. Missing, hidden or duplicate folders are rejected. Dot files,
 including macOS `._*`, and directories named like images are excluded from
 processing and input counts. An explicit `._*.json` is rejected.
 
+### Independent TIFF input: skip the LIF export stage
+
+Use [tiff_input_paths.json](tiff_input_paths.json) as a template and replace
+the example path. Entries may be individual `.tif`/`.tiff` files
+or folders containing them, for example:
+
+```json
+{
+  "paths_to_files": [
+    "/Volumes/ExampleDrive/Condition_A/SHG_sample_1.tif",
+    "/Volumes/ExampleDrive/Condition_B/SHG_TIFFs"
+  ]
+}
+```
+
+Folder scans are nonrecursive. Do not list the same TIFF explicitly and via
+its containing folder; overlapping entries are rejected. Files in the same
+parent folder share a result run, even when listed separately. Hidden files
+are excluded from folder inventories and counts; explicitly listed hidden
+paths are rejected. Output subfolders are not scanned on later runs.
+
+Use original single-channel grayscale intensity images, stored as uint8,
+uint16 or float32. Each TIFF must contain one image series, one resolution,
+one channel and one timepoint, with axes YX or ZYX. RGB/palette images,
+multichannel/time-series TIFFs and unsupported pixel types are rejected
+instead of silently selecting or converting data. Unlabelled multipage
+TIFFs are treated as Z-stacks and logged as `ASSUMED_Z_STACK`; confirm this
+interpretation against acquisition records. ImageJ must decode the same
+dimensions and pixel type as the TIFF header. TIFF compatibility is not
+guaranteed for every vendor layout.
+
+Spatial calibration is read from supported OME, ImageJ or TIFF resolution
+metadata. No LIF or MCA export audit is required. If an MCA sidecar is present,
+its integrity checks still apply. Missing XY calibration leaves physical
+fields blank; do not infer micrometers from image dimensions alone.
+
 ## 4. Export original LIF images
 
 In the activated VS Code terminal, from the project root, run:
@@ -245,6 +292,8 @@ zero failed or unprocessed inputs. Export counts refer to **LIF files**; one
 LIF can produce many TIFFs because it contains scenes, channels and tiles.
 
 Open a TIFF and confirm the original width, height, Z slices and channel.
+Export creates numbered folders for all channels; it does not identify SHG
+or transmitted-light channels automatically. Select SHG from acquisition records.
 Keep its adjacent `.tif.json`, the `Metadata` directory and `run_status.json`
 together with the TIFFs. Renaming or editing audited export files can make
 the next stage reject them. Only timepoint 0 is exported; see
@@ -252,7 +301,7 @@ the next stage reject them. Only timepoint 0 is exported; see
 
 ## 5. Run the SHG analysis
 
-Use MCA 0.2.3 with the dependencies installed from this checkout.
+Use MCA 0.2.4 with the dependencies installed from this checkout.
 If upgrading from 0.2.0 or 0.2.1, follow [the update instructions](#7-later-sessions-and-software-updates)
 before starting this stage.
 
@@ -260,16 +309,19 @@ Confirm which exported channel contains the SHG signal; channel 1 is only
 the software default. For channel 1, start the interactive workflow:
 
 ```bash
-shg2_intden_assay -i input_paths.json --channel 1
+shg2_intden_assay -i input_paths.json
 ```
 
-The same JSON still points to the **original folders**. MCA selects an export
-inside each folder automatically. It asks these questions in the terminal:
+First choose the input source. For `export`, the same JSON still points to the
+**original LIF folders**, and MCA selects a verified export inside each folder.
+The default exported channel is 1; use `--channel N` to select another folder.
+For `tiff`, supply the TIFF JSON described above instead. The questions are:
 
 | Prompt | What to enter | Effect |
 |---|---|---|
+| `Input source: 1/export ... or 2/tiff ...` | `export` / `1`, or `tiff` / `2` | Continue a verified LIF export, or analyze independent TIFF inputs |
 | `Projection: 1/max or 2/sum` | `max` (or `1`), or `sum` (or `2`) | MAX keeps the largest intensity at each XY position; SUM adds intensities across Z |
-| `Threshold: auto or manual` | `auto` or `manual` | Auto uses ImageJ Moments for each image; manual uses your bounds |
+| `Threshold: auto or manual` | `auto` or `manual` | Auto uses ImageJ `Moments dark` for bright signal on a dark background; manual uses your bounds |
 | `Lower threshold` / `Upper threshold` | Numbers, if manual | Bounds are in the projected image's intensity units; Enter defaults to 0 / `inf` |
 | `Start processing? yes/no` | `yes` | Starts the analysis |
 
@@ -287,25 +339,37 @@ runs. A completed run returns the terminal prompt and records a final status.
 For repeatable, noninteractive use, specify all choices and `--yes`:
 
 ```bash
-shg2_intden_assay -i my_input_paths.json --channel 1 --projection max --threshold-mode auto --yes
+shg2_intden_assay -i input_paths.json --input-source export --channel 1 --projection max --threshold-mode auto --yes
 ```
 
 Manual syntax examples, with an unlimited or finite upper bound:
 
 ```bash
-shg2_intden_assay -i my_input_paths.json --channel 1 --projection sum --threshold 2000 --yes
-shg2_intden_assay -i my_input_paths.json --channel 1 --projection sum --threshold 2000 50000 --yes
+shg2_intden_assay -i input_paths.json --input-source export --channel 1 --projection sum --threshold 2000 --yes
+shg2_intden_assay -i input_paths.json --input-source export --channel 1 --projection sum --threshold 2000 50000 --yes
 ```
 
 The numbers above illustrate syntax, **not validated biological cutoffs**.
 `--threshold LOWER [UPPER]` selects manual mode; omitted UPPER is infinity.
 To analyze another channel, replace `--channel 1` with its number.
 
+For independent TIFFs, start with prompts or supply every setting:
+
+```bash
+shg2_intden_assay -i tiff_input_paths.json
+shg2_intden_assay -i tiff_input_paths.json --input-source tiff --projection max --threshold-mode auto --yes
+```
+
+Choose `tiff` at the first prompt in the first command. `--input-source` is
+required in noninteractive runs. `--channel`, `--allow-partial-export` and
+`--allow-legacy-export` apply only to `export`; independent TIFFs must already
+contain the selected SHG channel. Both input modes use identical analysis.
+
 The original Python file launchers also work after installation:
 
 ```bash
-python code/shg1_lif_to_tif.py -i my_input_paths.json
-python code/shg2_intden_assay.py -i my_input_paths.json
+python code/shg1_lif_to_tif.py -i input_paths.json
+python code/shg2_intden_assay.py -i input_paths.json
 ```
 
 ## 6. Find and inspect the results
@@ -318,7 +382,8 @@ and `<id>` is a unique suffix in the examples below.
 | Stage | Output directory |
 |---|---|
 | LIF export | `<input>/output_<folder>_<timestamp>_<id>/` |
-| SHG analysis | `<selected export>/channel_<N>/Mask_Intensity_Area_Results_<timestamp>_<id>/` |
+| SHG analysis, export mode | `<selected export>/channel_<N>/Mask_Intensity_Area_Results_<timestamp>_<id>/` |
+| SHG analysis, independent TIFF mode | `<TIFF parent folder>/Mask_Intensity_Area_Results_<timestamp>_<id>/` |
 
 **Inside the export directory:**
 
@@ -336,9 +401,19 @@ and `<id>` is a unique suffix in the examples below.
 | `<image>_processed.tif` | One grayscale 2D MAX or SUM projection, retaining the source XY size |
 | `Masks/<image>_mask.tif` | An 8-bit binary image: white selected signal on black background |
 | `Masked_Images/<image>_masked.tif` | Masked signal preview with two smoothing operations and contrast enhancement; use for visual inspection |
-| `Tables/All_area_measurements.csv` | One row per successfully analyzed TIFF, with areas, intensities and processing metadata |
+| `Tables/Area_measurements_individual.csv` | Successfully analyzed images whose filename does not contain `merged` |
+| `Tables/Area_measurements_merged.csv` | Successfully analyzed images whose filename contains `merged`, case-insensitively |
 | `Metadata/<image>.json` | Source provenance, calibration and the corresponding measurements |
 | `run_status.json`, `run.log` | Selected export, parameters, per-image outcomes and errors |
+
+The two tables have identical columns. Each successful image appears in
+exactly one table; an empty group has a header-only CSV. If no image succeeds,
+no measurement tables are written. `run_status.json` records both table
+checksums and row counts under `summaries`. Version 0.2.4 replaces the former
+`All_area_measurements.csv`; update downstream imports accordingly.
+The `merged` name changes only table grouping, not projection, resizing,
+thresholds or metrics. It does not establish whether an image is a stitched
+mosaic or a color-channel composite; RGB composites remain invalid SHG inputs.
 
 Install the optional [Fiji desktop viewer](https://imagej.net/software/fiji/)
 to inspect scientific TIFFs. Open a TIFF with **File → Open**, use the stack
@@ -378,9 +453,9 @@ blank when trustworthy XY calibration is missing.
 
 ### Check before using a result table
 
-1. Confirm `SUCCESS` in both export and analysis `run_status.json` files.
+1. Confirm `SUCCESS` in the analysis record and, in export mode, the export record.
    Review counts and errors; a CSV alone does not prove a complete run.
-2. Check that the recorded `export_run` is the export you intended to use.
+2. Check `input_source` and the input inventory; in export mode also check `export_run`.
 3. Compare the TIFF dimensions with the original data and confirm the SHG
    channel. A width or height of 1024 is valid if it was the original size.
 4. Inspect masks across representative conditions for missed signal or
@@ -443,7 +518,8 @@ metadata with the experiment. A protocol-ready methods text is provided in
 ## Native pixels and metadata
 
 Version 0.2 removes the 1024 × 1024 resize and the filename-dependent
-`merged` exception. All images retain their original XY dimensions.
+`merged` resizing exception. All images retain their original XY dimensions.
+Version 0.2.4 separates `merged` table rows without changing image dimensions.
 Export/projection perform no resampling or intensity normalization.
 LIF 8/16-bit storage is retained; source detector bit depth is recorded.
 MAX preserves the pixel type; SUM is float32 even for a one-slice input.
@@ -481,6 +557,9 @@ contrast enhancement. Measurements use the unsmoothed masked pixels.
 
 ## Selecting an export
 
+This section applies to `--input-source export`. Independent TIFF mode reads
+the supplied images directly and records their source hashes and metadata.
+
 Every run has a unique UTC timestamp/random suffix; earlier runs are never
 reused or overwritten. Each has `run.log` and `run_status.json`.
 SHG additionally saves projections, `Tables/`, `Masks/`, `Masked_Images/`
@@ -501,13 +580,15 @@ records. Lost physical metadata cannot be reconstructed from old TIFFs alone.
 
 ## Table definitions
 
-The table is `Tables/All_area_measurements.csv`.
+The tables are `Tables/Area_measurements_individual.csv` and
+`Tables/Area_measurements_merged.csv`, with the same definitions below.
 
 | Columns | Meaning |
 |---|---|
+| `Input_Source`, `Image_Group` | `export` or `tiff`; `individual` or `merged` |
 | `Original_Width_px`, `Original_Height_px` | Native XY dimensions |
 | `Pixel_Width_um`, `Pixel_Height_um`, `Pixel_Depth_um` | Recorded sampling |
-| `Particle_Count` | Measured particle count |
+| `Particle_Count` | Connected measured regions, not a count of individual collagen fibers |
 | `Total_Area_px2`, `Total_Area_um2` | Sum of particle areas, in pixels and µm² |
 | `Average_Particle_Area_px2`, `Average_Particle_Area_um2` | Total area/count; zero when count is zero |
 | `Image_Area_px2`, `Image_Area_um2` | Entire image area |
@@ -517,6 +598,7 @@ The table is `Tables/All_area_measurements.csv`.
 | `Integrated_Density_um2` | Raw integrated signal × physical pixel area, in signal·µm² |
 | `Calibration_Status`, `Calibration_Source` | Availability and source of physical XY sampling |
 | `Threshold_Lower`, `Threshold_Upper` | Actual ImageJ thresholds, including automatic runs |
+| `Threshold_Method` | `Moments dark` for automatic bright-signal detection, or `manual` |
 
 Physical area = pixel area × pixel width in µm × pixel height in µm.
 Missing scale produces blank physical columns and `MISSING_XY_CALIBRATION`;
@@ -570,6 +652,12 @@ real readlif parsing of generated LIFs, native TIFF pixels, anisotropic/missing
 calibration, hidden/corrupt files, result selection, CLI and temporary storage.
 Native tests cover MAX/SUM, rectangular 8/16-bit images, float32, saved
 calibration, zero signal and multiple folders.
+Version 0.2.4 adds independent file/folder input, mode prompts, duplicate and
+dimensionality rejection, bright-foreground masks, split merged tables and
+partial-failure audit tests. Local checks use ImageJ1; the full-Fiji command
+test covers both input routes in CI. The supplied experimental TIFF was also
+checked locally for native projections, calibrated area and raw intensity
+sums; this is a software check, not validation of a universal SHG threshold.
 
 LIF-reader regression tests reproduce readlif's premature-close failure
 using complete images followed by zero padding. They cover short and large
@@ -643,6 +731,9 @@ certificate trust.
 | Input JSON / folder error | Save valid JSON; replace example paths with existing folders. In WSL use Linux paths such as `/mnt/d/...`, not `D:\...`. |
 | `NO_INPUT` | Put original `.lif` files directly in the listed folder. Export is not recursive. Files beginning with a dot are intentionally excluded. |
 | No verified `channel_N` export | Check stage 1 status, the channel number and file integrity. Re-export from original LIF if necessary. See the explicit legacy/partial options above. |
+| Independent TIFFs reported as missing exports | Select `--input-source tiff`; point JSON to TIFF files or their containing folders. |
+| TIFF rejected for channels, timepoints, type or dimensions | Export one grayscale SHG channel and one timepoint as an ImageJ-compatible YX/ZYX uint8, uint16 or float32 TIFF, retaining intensities and calibration. |
+| Automatic mask selects dark background in an older run | Update to 0.2.4 and rerun with the explicit bright-signal `Moments dark` policy; inspect masks before comparing results with earlier versions. |
 | `I/O operation on closed file` or `seek of closed file` inside readlif | Upgrade to MCA 0.2.3 and reinstall the package. readlif closes its handle while reporting an unexpected block marker; the message alone does not establish file corruption. MCA now accepts verified zero padding and reports other structural problems with byte positions. If it still fails, retain the new log and check the original LIF in Leica LAS X or Fiji Bio-Formats; do not trim or overwrite it. |
 | `UnboundLocalError` mentioning `major_version` at Fiji startup | Update from MCA 0.2.0, activate `mca_tools` and reinstall with `python -m pip install .`. Version 0.2.1 pins PyImageJ 1.5.0, scyjava 1.10.0 and jgo 1.0.4. Check `python -m pip show mca-tools pyimagej scyjava jgo` and restart the command in a fresh process. |
 | Other Java / Maven errors, including missing `JWlz` or a malformed JAR path | Check Java 11 and Maven 3.9.9 in the active environment; apply the Conda environment update above if Maven is 3.10. Then inspect `imagej.log` for the exact error. The first backend download needs network access to Maven repositories; institutional proxy/firewall settings may require local IT support. |

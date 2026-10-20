@@ -5,6 +5,48 @@ from xml.etree import ElementTree
 from .calibration import Calibration, positive, unit_factor
 
 
+def tiff_layout(path):
+    """Reject ambiguous channels/time/series and lossy ImageJ input types."""
+    import tifffile
+
+    with tifffile.TiffFile(path) as tif:
+        if len(tif.series) != 1 or len(tif.series[0].levels) != 1:
+            raise ValueError(
+                "Export one image series at one resolution per TIFF"
+            )
+        series = tif.series[0]
+        if series.dtype.name not in {"uint8", "uint16", "float32"}:
+            raise ValueError("TIFF pixels must be uint8, uint16 or float32")
+        for page in series.pages:
+            if page.samplesperpixel != 1 or int(page.photometric) not in {
+                0,
+                1,
+            }:
+                raise ValueError(
+                    "TIFF must be grayscale, not RGB or palette color"
+                )
+        axes = list(zip(series.axes, series.shape))
+        for axis, size in axes:
+            if axis in "CTS" and size != 1:
+                raise ValueError(
+                    "TIFF must contain one channel and one timepoint; "
+                    "export the selected SHG channel/timepoint separately"
+                )
+        axes = [(axis, size) for axis, size in axes if axis not in "CTS"]
+        names = "".join(axis for axis, _ in axes)
+        if names not in {"YX", "ZYX", "QYX", "IYX"}:
+            raise ValueError(
+                f"Unsupported TIFF axes {series.axes!r}; use YX or ZYX"
+            )
+        z = axes[0][1] if len(axes) == 3 else 1
+        return {
+            "axes": series.axes,
+            "shape_zyx": [z, axes[-2][1], axes[-1][1]],
+            "dtype": series.dtype.name,
+            "assumed_z_stack": names in {"QYX", "IYX"},
+        }
+
+
 def tiff_calibration(path):
     import tifffile
 
