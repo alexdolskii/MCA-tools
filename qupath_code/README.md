@@ -65,8 +65,8 @@ provide the plugin directory, but does not replace QuPath's runtime.
    and select that ImageJ/Fiji installation. Restart QuPath after changing
    plugins. Check that its embedded ImageJ can access the exact command
    `Colour Deconvolution2`; the older `Colour Deconvolution` is different.
-4. Download this repository, or download the Groovy file using GitHub's raw
-   file download. VS Code is optional for editing; execution is in QuPath.
+4. Download and open the script using the instructions below. VS Code is
+   optional for editing; execution is in QuPath's Script Editor.
 5. Open a brightfield RGB image or a QuPath project and create named **area
    annotations** around the tissue regions to analyze. Verify the source
    pixel calibration. Save the project and its annotations.
@@ -80,10 +80,55 @@ bounding box at downsample **1.0**, with no resizing. A large whole-slide
 annotation can exceed ImageJ's array or memory limits. See
 [QuPath's ImageJ documentation](https://qupath.readthedocs.io/en/0.7/docs/advanced/imagej.html).
 
+## Download the script and open it in QuPath
+
+### Download the single Groovy file
+
+1. Open the
+   [script's GitHub page](https://github.com/alexdolskii/MCA-tools/blob/main/qupath_code/qupath_herovici_analysis.groovy).
+2. Above the code, click **Download raw file** (the download-arrow button).
+   Alternatively, open the
+   [raw script](https://raw.githubusercontent.com/alexdolskii/MCA-tools/main/qupath_code/qupath_herovici_analysis.groovy)
+   and use your browser's **Save As** command if it displays the code.
+3. Save it as **`qupath_herovici_analysis.groovy`** in a permanent folder,
+   for example `Documents/MCA-tools/qupath_code`. Keep the `.groovy`
+   extension; check that the filename does not end in `.groovy.txt` or
+   `.html`. The downloaded file should contain plain script text.
+
+You can download this public file without installing Git or Conda. To
+download the entire repository instead, open
+[MCA-tools](https://github.com/alexdolskii/MCA-tools), choose
+**Code > Download ZIP**, extract the archive, and find the file inside
+`MCA-tools-main/qupath_code`. Extract the ZIP before opening the script.
+
+### Load the file into QuPath
+
+1. Start QuPath and open the image/project with the annotations you prepared.
+2. Choose **Automate > Show script editor** in QuPath's main window.
+3. In the **Script Editor**, choose **File > Open...**, browse to the saved
+   `qupath_herovici_analysis.groovy` file and open it. Use the editor's File
+   menu, rather than the main window's image-opening command.
+4. Confirm that the code appears in an editor tab and the script language
+   is **Groovy**. If a language selection is needed, select Groovy in the
+   editor's language menu.
+5. Choose **Run > Run** in the Script Editor once. The first expected dialog
+   is **Herovici analysis - processing scope**. Continue with the settings
+   described in the next section.
+
+Opening the file in the Script Editor is how this script is added for use
+in QuPath. It is not a QuPath extension JAR and does not belong in the
+extensions folder. **Colour Deconvolution2** is the separate ImageJ plugin
+installed in the preparation steps above.
+
+Keep the saved `.groovy` file for later sessions and reopen it using the
+same editor command. When updating, download a new copy, reopen that copy
+and record the repository revision used for the analysis. See also
+[QuPath's scripting guide](https://qupath.readthedocs.io/en/0.7/docs/scripting/overview.html).
+
 ## Run
 
-1. Open **Automate > Show script editor**, open the `.groovy` file and choose
-   **Run** once. The script handles project iteration itself; do not combine
+1. Load the script as described above and choose **Run > Run** once in the
+   Script Editor. The script handles project iteration itself; do not combine
    its project mode with the editor's separate project-wide run command.
 2. Choose **Current open image** or **Entire QuPath project**.
 3. Enter whole-number thresholds from 0 to 255, with minimum no greater than

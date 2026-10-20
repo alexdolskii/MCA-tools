@@ -91,7 +91,22 @@ In QuPath 0.7, choose **Extensions > ImageJ > Set local ImageJ directory...**
 and select the local ImageJ/Fiji installation. Restart QuPath and verify
 that embedded ImageJ has the command `Colour Deconvolution2`.
 
-### 2. Record software and specimen information
+### 2. Download the script and record software information
+
+Open the
+[script's GitHub page](https://github.com/alexdolskii/MCA-tools/blob/main/qupath_code/qupath_herovici_analysis.groovy)
+and click **Download raw file** (the download-arrow button above the code).
+Alternatively, open the
+[raw file](https://raw.githubusercontent.com/alexdolskii/MCA-tools/main/qupath_code/qupath_herovici_analysis.groovy)
+and use the browser's **Save As** command. Save the plain-text file as
+**`qupath_herovici_analysis.groovy`** in a permanent folder such as
+`Documents/MCA-tools/qupath_code`. Check that `.txt` or `.html` has not been
+added to its filename.
+
+An alternative is **Code > Download ZIP** on the
+[repository page](https://github.com/alexdolskii/MCA-tools). Extract the ZIP
+and locate the script in `MCA-tools-main/qupath_code`. Git and Conda are
+not required for either download route.
 
 Record QuPath, embedded ImageJ, plugin and Java versions, operating system,
 script/repository revision, sample identifiers, stain protocol/batch,
@@ -119,8 +134,17 @@ tables and closes image/utility windows without save prompts.
 
 ### 5. Open the script and choose the processing scope
 
-In QuPath, open **Automate > Show script editor**, load
-`qupath_herovici_analysis.groovy`, and choose **Run** once.
+In QuPath's main window, choose **Automate > Show script editor**. In the
+Script Editor's **File > Open...** menu, select the downloaded
+`qupath_herovici_analysis.groovy` file. Confirm that the source code appears
+in an editor tab and the language is **Groovy**; select Groovy in the
+editor's language menu if needed. Choose **Run > Run** once in that editor.
+The first expected dialog is **Herovici analysis - processing scope**.
+
+The `.groovy` file is loaded as a script, not installed as a QuPath extension
+JAR. Colour Deconvolution2 is the separate ImageJ plugin from step 1. Keep
+the downloaded file and reopen it in the Script Editor for later sessions.
+
 Select **Current open image** or **Entire QuPath project**. The script
 iterates through project entries itself, so do not also invoke the editor's
 project-wide batch runner.

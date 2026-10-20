@@ -609,6 +609,24 @@ downsample 1.0, whites out pixels outside each ROI, and calls
 red/blue masks and `Summary_Mask_Analysis.csv` with one row per processed
 annotation. Default thresholds are Red 0-100 and Blue 0-103 (8-bit values).
 
+### Download and load the QuPath script
+
+1. Open the [Groovy file on GitHub](https://github.com/alexdolskii/MCA-tools/blob/main/qupath_code/qupath_herovici_analysis.groovy)
+   and click **Download raw file** above the code. Save it as
+   `qupath_herovici_analysis.groovy`, keeping that exact file extension.
+2. In QuPath, choose **Automate > Show script editor**. In the editor, choose
+   **File > Open...** and select the downloaded file; confirm **Groovy** as
+   the script language.
+3. After completing the ImageJ/plugin setup and preparing annotations, choose
+   **Run > Run** once in the editor. The processing-scope dialog should open.
+
+See the [detailed download and loading instructions](qupath_code/README.md#download-the-script-and-open-it-in-qupath)
+for the direct raw link, ZIP alternative and filename checks. The `.groovy`
+file runs through the Script Editor; Colour Deconvolution2 is installed
+separately as described in the [QuPath setup guide](qupath_code/README.md#install-and-prepare).
+
+### Methodological basis
+
 This workflow is **based on and adapted from the Herovici image-analysis
 approach of [Samyukta et al. (2022), PMID 36037140](https://pubmed.ncbi.nlm.nih.gov/36037140/)**
 ([doi:10.31557/APJCP.2022.23.8.2829](https://doi.org/10.31557/APJCP.2022.23.8.2829)).
