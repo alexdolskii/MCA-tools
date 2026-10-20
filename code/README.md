@@ -16,7 +16,8 @@ Implementations live in `mca_tools`; QuPath is a separate workflow.
 | `shg_analysis.py` | Per-image SHG workflow and result tables |
 | `shg_imagej.py` | Projection, masks and TIFF saving |
 | `run.py` | Unique result directories, logs and image outcomes |
-| `imagej.py` | Shared Fiji endpoint and command-boundary shutdown |
+| `fiji_config.py` | Fiji endpoint, official OME repository and command temporary directory |
+| `imagej.py` | Headless Fiji initialization and command-boundary shutdown |
 | `runtime.py` | Worker temporary directories, process observation and cleanup |
 
 ## Rules to preserve
@@ -45,6 +46,22 @@ Implementations live in `mca_tools`; QuPath is a separate workflow.
 
 ## Development
 
+The Java bridge matches FIA `tech_dev` and UMA `UMA-tools-V2`: PyImageJ
+1.5.0, scyjava 1.10.0 and jgo 1.0.4, installed from `pyproject.toml`.
+`fiji_config.py` is the only definition of `FIJI_ENDPOINT`. It registers the
+official OME Maven repository declared by Bio-Formats so that fresh installs
+can resolve legacy dependencies such as `woolz:JWlz:1.4.0`. It preserves
+caller-supplied JVM options and configures the owned temporary directory.
+Use the Conda-provided Java 11 and Maven 3.9.9. MCA retains its own Python 3.12
+environment; it does not import FIA or UMA.
+
+`environment.yaml` pins Maven 3.9.9 because Maven 3.10 introduced default
+prefix filtering and warning output incompatible with jgo 1.0.4. Fresh
+integration testing exposed both a missing OME `/woolz` prefix and a jgo
+warning-parser failure. Keep this pin until a newer complete bridge stack
+passes the full-Fiji command tests. Configuration leaves `MAVEN_OPTS` and
+user configuration files unchanged.
+
 ```bash
 python -m pip install -e '.[dev]'
 ruff check code tests
@@ -58,7 +75,16 @@ tests generate small LIF files and use the real readlif parser; they cover
 TIFF pixel equality, calibration, failed inputs, hidden files, run selection,
 JSON paths, CLI startup and owned temporary storage. Native tests use
 rectangular, anisotropic, 8/16-bit and zero-signal images, MAX/SUM, saved
-masks/projections, and two-folder partial completion.
+masks/projections, and two-folder partial completion. A full-Fiji test also
+executes installed export and MAX/SUM commands in fresh processes, verifies
+Bio-Formats availability and calibrated measurements, and requires normal
+worker exit. CI runs these checks with Java 11 on Linux and macOS.
+
+The pytest configuration disables its `faulthandler` plugin, as recommended
+by the [JPype user guide](https://jpype.readthedocs.io/en/latest/userguide.html),
+so Python does not replace the JVM's fault handlers during interpreter
+shutdown. This avoids a test-process crash after otherwise successful
+native tests; assertions and command exit checks remain enabled.
 
 For an offline native test only, `MCA_TEST_IMAGEJ_CLASSPATH` may specify
 ImageJ, ij1-patcher and Javassist JARs separated by the OS path separator.

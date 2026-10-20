@@ -1,10 +1,9 @@
 """Own Fiji initialization and shutdown at the command boundary."""
 
-import os
 import sys
 from contextlib import contextmanager
 
-FIJI_ENDPOINT = "sc.fiji:fiji:2.14.0"
+from .fiji_config import FIJI_ENDPOINT, configure_runtime
 
 
 def shutdown_workers():
@@ -23,13 +22,8 @@ def shutdown_workers():
 @contextmanager
 def session(logger):
     import imagej
-    import scyjava
 
-    scyjava.config.set_java_constraints(fetch="never")
-    if os.environ.get("MCA_RUN_TMP"):
-        scyjava.config.add_option(
-            "-Djava.io.tmpdir=" + os.environ["MCA_RUN_TMP"]
-        )
+    configure_runtime()
     logger.info("Initializing %s", FIJI_ENDPOINT)
     instance = None
     try:

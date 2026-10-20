@@ -79,5 +79,5 @@ def native_imagej():
 
         from mca_tools.imagej import session
 
-        with session(logging.getLogger("test.imagej")):
-            yield
+        with session(logging.getLogger("test.imagej")) as context:
+            yield context

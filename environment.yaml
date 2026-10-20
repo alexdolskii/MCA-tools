@@ -6,7 +6,8 @@ dependencies:
   - python=3.12
   - pip
   - openjdk=11
-  - maven
+  # jgo 1.0.4 parses Maven output; Maven 3.10 changed its warning format.
+  - maven=3.9.9
 
 # Install the Python dependencies and terminal commands from the repository root:
 # python -m pip install .

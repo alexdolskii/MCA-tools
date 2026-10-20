@@ -42,6 +42,7 @@ def software_versions():
         "pandas",
         "pyimagej",
         "scyjava",
+        "jgo",
     ):
         try:
             result[name] = version(name)

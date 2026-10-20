@@ -2,25 +2,29 @@
 
 This is a standalone text for a protocols.io draft. It has not been published
 to protocols.io. Copy the title, abstract, materials and numbered procedure
-into the corresponding protocol fields. Resolve the software limitation below
-before presenting the complete procedure as validated.
+into the corresponding protocol fields. Record the software version and
+validate masks and calibration for the experimental dataset being analyzed.
 
 ## Protocol status and version
 
-Documentation date: 20 October 2026. Software: MCA-tools 0.2.0; implementation
-examined at commit `fef7a6f0716915fa6b479e771ffb8ef0e426b7ca`.
+Documentation date: 20 October 2026. Software: MCA-tools 0.2.1; implementation
+examined at commit `823531cdfd49e663d637bb6f66e1560f4f2b9654`.
 
-**Known execution blocker:** Linux and macOS Python checks passed, including
-LIF export tests. The full Fiji integration test failed before analysis with
-`UnboundLocalError: major_version` in PyImageJ 1.8.0. The standard SHG startup
-therefore requires a software fix and successful integration testing before
-routine use. Export does not start Java and is unaffected. The analysis steps
-below describe the implemented procedure and expected outputs, rather than
-demonstrating a completed end-to-end validation.
-
-Evidence: [GitHub Actions run for the examined implementation](https://github.com/alexdolskii/MCA-tools/actions/runs/39344053874).
-Check [subsequent runs](https://github.com/alexdolskii/MCA-tools/actions) and
-record the exact version actually used when adapting this protocol.
+Version 0.2.1 replaces the PyImageJ 1.8.0 startup path that failed in 0.2.0
+with the same pinned Java bridge used by FIA `tech_dev` and UMA `UMA-tools-V2`.
+Fiji settings and Bio-Formats' official OME Maven repository are configured
+in `code/mca_tools/fiji_config.py` so that dependencies can be downloaded on
+a new computer without an existing cache.
+Maven is pinned to 3.9.9 because Maven 3.10 is incompatible with this jgo
+dependency-resolution path.
+Full-Fiji integration checks cover Linux and macOS, including export followed
+by MAX and SUM analysis through the installed commands, measurement checks
+and process termination. The test record is available in
+[GitHub Actions](https://github.com/alexdolskii/MCA-tools/actions/runs/39441858607).
+On the documentation date, all 26 Python tests and 8 full-Fiji tests passed
+on each system with normal process exit.
+Record the exact version actually used when adapting this protocol. Software
+integration testing does not substitute for experimental image quality control.
 
 ## Abstract
 
@@ -59,9 +63,9 @@ image analysis; spatial calibration; Conda; MCA-tools.
 | CSV viewer | Excel, LibreOffice Calc or equivalent; VS Code can also show CSV text |
 | Input data | Original Leica `.lif` files, with acquisition metadata including pixel dimensions and the identity of the SHG channel |
 
-The environment file specifies Python 3.12, OpenJDK 11 and Maven. The
-examined package pins NumPy 2.2.6, pandas 2.2.3, PyImageJ 1.8.0, readlif
-0.6.6, scyjava 1.12.4 and tifffile 2025.6.11; psutil is also required.
+The environment file specifies Python 3.12, OpenJDK 11 and Maven 3.9.9. The
+examined package pins NumPy 2.2.6, pandas 2.2.3, PyImageJ 1.5.0, readlif
+0.6.6, scyjava 1.10.0, jgo 1.0.4 and tifffile 2025.6.11; psutil is also required.
 The Fiji endpoint is `sc.fiji:fiji:2.14.0`. Installation resolves dependencies
 from the repository files. MCA has its own environment and does not require
 FIA-tools. Native Windows, WSL and real ND2 inputs have not received complete
@@ -168,7 +172,7 @@ conda run -n base git rev-parse HEAD
 ```
 
 Expect Python 3.12.x from `envs/mca_tools`, no broken pip requirements, Java
-11, Maven version information, and the MCA command help/version. Record the
+11, Maven 3.9.9, and the MCA command help/version. Record the
 package version and commit hash. Optionally save the resolved installation
 for the experiment record:
 
@@ -178,10 +182,21 @@ python -m pip freeze > mca_python_packages_record.txt
 conda run -n base git rev-parse HEAD > mca_commit_record.txt
 ```
 
-These checks do not start Fiji. **Before analysis in step 9, the documented
-PyImageJ startup blocker must be fixed and the installed version's complete
-Fiji integration check must pass.** Do not equate a successful pip install
-with a working SHG backend.
+These checks do not start Fiji. Use MCA 0.2.1 or later with the dependencies
+declared by that checkout. When upgrading from 0.2.0, run these commands in
+the project root:
+
+```bash
+conda run -n base git pull --ff-only
+conda env update -n mca_tools -f environment.yaml
+conda activate mca_tools
+python -m pip install .
+python -m pip check
+```
+
+Changing the endpoint alone does not update Maven or the Python bridge.
+Review the full Fiji test record for the
+installed revision, then confirm the complete workflow on representative data.
 
 ### 5. Configure Visual Studio Code
 
@@ -271,8 +286,8 @@ The complete original LIF XML is retained in `Metadata/`.
 
 ### 9. Choose analysis settings and start SHG processing
 
-Proceed only after satisfying the Fiji startup prerequisite in step 4.
-Confirm which exported channel represents SHG; channel 1 is only the
+Confirm the installed software version as described in step 4 and which
+exported channel represents SHG; channel 1 is only the
 default. For channel 1, run:
 
 ```bash
@@ -446,9 +461,9 @@ the affected data.
 - Old exports that lost calibration cannot recover it from pixel arrays
   alone. Re-export the original LIF data. Legacy or partial exports require
   explicit CLI options and do not meet the standard complete-run criteria.
-- The full Fiji startup issue described at the beginning remains a blocker
-  for this examined version. The local ImageJ1 tests and passing Python CI
-  do not demonstrate successful complete Fiji/ND2 operation.
+- The automated full-Fiji checks use synthetic, calibrated images. Real ND2
+  data and Windows/WSL require separate validation. Assess segmentation and
+  acquisition calibration on the actual experimental images.
 
 ## Troubleshooting
 
@@ -459,8 +474,8 @@ the affected data.
 | Invalid JSON or missing folder | Save valid JSON and replace example paths. Use paths visible inside the active operating system, including `/mnt/d/...` in WSL. |
 | No input images | Place LIFs directly in the listed folder. Hidden `._*` files are intentionally ignored. |
 | No verified export/channel | Review export status, channel number and file integrity; re-export original LIF if necessary. |
-| PyImageJ error mentioning `major_version` | Known startup defect in the examined dependency combination. Use a software revision that fixes it and passes the full Fiji check; changing data paths or thresholds will not fix it. |
-| Other Java/Maven initialization failure | Verify active Java/Maven and inspect `~/.mca-tools/runs/<run_id>/imagej.log`; initial component downloads require network access. |
+| PyImageJ error mentioning `major_version` | Update MCA 0.2.0 to 0.2.1 or later, activate `mca_tools`, reinstall with `python -m pip install .` and restart the command. Verify versions with `python -m pip show mca-tools pyimagej scyjava jgo`. |
+| Other Java/Maven initialization failure | Verify Java 11 and Maven 3.9.9 in the active environment; update the Conda environment if Maven is 3.10. Inspect `~/.mca-tools/runs/<run_id>/imagej.log`; initial component downloads require network access. |
 | Missing µm² measurements | Review original spatial metadata and sidecars; re-export if appropriate. Do not invent a pixel scale. |
 | Partial or failed processing | Inspect `run.log` and per-input records for corrupt files, memory problems, unwritable storage or the exact processing error. |
 
@@ -474,7 +489,7 @@ mean that analysis completed successfully.
 ## References and software resources
 
 - [MCA-tools repository and current README](https://github.com/alexdolskii/MCA-tools)
-- [MCA-tools implementation examined for this protocol](https://github.com/alexdolskii/MCA-tools/tree/fef7a6f0716915fa6b479e771ffb8ef0e426b7ca)
+- [MCA-tools implementation examined for this protocol](https://github.com/alexdolskii/MCA-tools/tree/823531cdfd49e663d637bb6f66e1560f4f2b9654)
 - [Miniforge installation documentation](https://github.com/conda-forge/miniforge)
 - [Visual Studio Code Python environments](https://code.visualstudio.com/docs/python/environments)
 - [Microsoft WSL installation](https://learn.microsoft.com/en-us/windows/wsl/install)

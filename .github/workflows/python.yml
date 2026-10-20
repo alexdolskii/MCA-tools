@@ -36,7 +36,11 @@ jobs:
         run: python -m pytest -q -m 'not imagej'
 
   imagej:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     defaults:
       run:

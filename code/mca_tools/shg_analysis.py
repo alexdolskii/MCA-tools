@@ -13,8 +13,9 @@ import scyjava as sj
 
 from .calibration import Calibration, measurement_columns
 from .discovery import select_export
+from .fiji_config import FIJI_ENDPOINT
 from .files import output_record, sha256_file, write_json
-from .imagej import FIJI_ENDPOINT, session
+from .imagej import session
 from .metadata import nd2_calibration, tiff_calibration
 from .run import Run
 from .shg_imagej import (

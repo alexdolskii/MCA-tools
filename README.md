@@ -6,14 +6,15 @@ MCA exports Leica LIF images as calibrated TIFF Z-stacks and measures SHG area
 and intensity. Python uses its own `mca_tools` environment. The separate
 [QuPath workflow](qupath_code) is unchanged.
 
-**Current validation status (20 October 2026):** installation and Python tests
-passed on Linux and macOS, but the full Fiji test failed at startup with
-`UnboundLocalError: major_version` in PyImageJ 1.8.0. LIF export does not use
-Java and is unaffected. The SHG instructions below describe the implemented
-workflow; its standard Fiji startup is currently blocked and needs a software
-fix before routine use. See [validation](#development-and-validation) and
-[troubleshooting](#troubleshooting). Installing the package or printing its
-version does not establish that SHG analysis works.
+**Version 0.2.1:** MCA now uses the same pinned Fiji bridge as FIA `tech_dev`
+and UMA `UMA-tools-V2`: PyImageJ 1.5.0, scyjava 1.10.0 and jgo 1.0.4, with
+Fiji 2.14.0 and Java 11. This replaces the PyImageJ 1.8.0 startup path that
+failed with `UnboundLocalError: major_version` in MCA 0.2.0. Fiji settings
+are centralized in [fiji_config.py](code/mca_tools/fiji_config.py).
+The configuration also registers Bio-Formats' official OME repository for
+fresh Maven downloads. MCA additionally pins **Maven 3.9.9**, because Maven
+3.10's dependency-filtering and warning changes break this older jgo bridge.
+See [validation](#development-and-validation) for the actual test coverage.
 
 Start here:
 
@@ -38,7 +39,7 @@ Start here:
 
 This guide uses **Visual Studio Code**, Microsoft's code editor. The larger
 Visual Studio IDE is not required. Conda installs Python 3.12, OpenJDK 11 and
-Maven from [environment.yaml](environment.yaml); the subsequent pip command
+Maven 3.9.9 from [environment.yaml](environment.yaml); the subsequent pip command
 installs the Python dependencies declared in [pyproject.toml](pyproject.toml).
 You do not need to install Python or Java separately, or install FIA-tools.
 
@@ -155,11 +156,20 @@ shg2_intden_assay --version
 ```
 
 Expected: Python **3.12.x** from a path containing `envs/mca_tools`, no broken
-pip requirements, Java **11**, Maven version information and MCA command help
-or version **0.2.0**. These checks do not start Fiji. The SHG backend is pinned
-to `sc.fiji:fiji:2.14.0` and uses the environment's Java. A separate desktop
-Fiji installation is only a viewer and does not replace this backend or fix
-the startup issue documented above.
+pip requirements, Java **11**, Maven **3.9.9** and MCA command help
+or version **0.2.1**. These checks do not start Fiji. The SHG backend is pinned
+to `sc.fiji:fiji:2.14.0` in
+[fiji_config.py](code/mca_tools/fiji_config.py) and uses the environment's
+Java. A separate desktop Fiji installation is only a viewer and does not
+replace this backend.
+
+The bridge dependency pins in `pyproject.toml` match
+[FIA's environment](https://github.com/alexdolskii/FIA-tools/blob/tech_dev/environment.yaml)
+and [UMA's environment](https://github.com/alexdolskii/UMA-tools/blob/UMA-tools-V2/environment_uma.yaml).
+MCA retains its own Python 3.12 environment. Updating from MCA 0.2.0 requires
+updating that Conda environment and reinstalling the package after pulling
+the changes; use [the update commands](#7-later-sessions-and-software-updates).
+Editing the Fiji endpoint alone does not update these dependencies.
 
 ## 2. Set up Visual Studio Code
 
@@ -249,9 +259,9 @@ the next stage reject them. Only timepoint 0 is exported; see
 
 ## 5. Run the SHG analysis
 
-**Prerequisite:** resolve the current PyImageJ startup blocker described at
-the top of this README and confirm successful Fiji integration testing for
-the version you install. A successful LIF export alone is not that check.
+Use MCA 0.2.1 or later with the dependencies installed from this checkout.
+If upgrading from 0.2.0, follow [the update instructions](#7-later-sessions-and-software-updates)
+before starting this stage.
 
 Confirm which exported channel contains the SHG signal; channel 1 is only
 the software default. For channel 1, start the interactive workflow:
@@ -407,13 +417,14 @@ and results, and run from the project root:
 
 ```bash
 conda run -n base git pull --ff-only
+conda env update -n mca_tools -f environment.yaml
 conda activate mca_tools
 python -m pip install .
 python -m pip check
 ```
 
-If an update changes `environment.yaml`, follow that update's environment
-instructions as well. Do not mix software versions within a comparison set
+The environment update installs Maven 3.9.9 when upgrading an existing MCA
+environment. Do not mix software versions within a comparison set
 without reprocessing or assessing the effect. Record the version and exact
 Git commit with `shg2_intden_assay --version` and
 `conda run -n base git rev-parse HEAD`. Archive the command, input JSON and run
@@ -543,16 +554,22 @@ calibration, zero signal and multiple folders.
 
 Local validation used real headless ImageJ1 1.54p with ij1-patcher and a public
 [readlif LIF fixture](https://github.com/Arcadia-Science/readlif/tree/master/tests/artifacts/xyzt-example).
-For code commit `fef7a6f`, the
-[19 October 2026 GitHub Actions run](https://github.com/alexdolskii/MCA-tools/actions/runs/39344053874)
-passed both Linux and macOS Python jobs. The Fiji job failed before image
-analysis: PyImageJ 1.8.0 raised `UnboundLocalError` for `major_version` in
-`_guess_java_version()` when starting with Java fetching disabled. Therefore
-full pinned-Fiji operation is **not validated and currently has a known
-startup blocker**. Real ND2 data and Windows/WSL also require their own
-integration validation. Check newer [Actions runs](https://github.com/alexdolskii/MCA-tools/actions)
-when this issue is fixed; an environment installation or a local ImageJ1-only
-test does not substitute for the complete Fiji check.
+MCA 0.2.0 failed full Fiji startup with PyImageJ 1.8.0
+([original failing run](https://github.com/alexdolskii/MCA-tools/actions/runs/39344053874)).
+Version 0.2.1 adopts the FIA/UMA bridge pins and removes the incompatible
+Java-fetch configuration. It also pins Maven 3.9.9 after full integration
+checks exposed Maven 3.10 incompatibilities in dependency resolution and
+jgo's warning parser. The new full-Fiji test launches the installed
+export and MAX/SUM analysis commands in separate processes, checks
+Bio-Formats availability, native pixel area, physical area and integrated
+signal, and requires successful command exit. These checks run on both
+Linux and macOS in [GitHub Actions](https://github.com/alexdolskii/MCA-tools/actions/runs/39441858607).
+On 20 October 2026, implementation commit `823531c` passed 26 Python tests
+and all 8 full-Fiji tests on each system, including normal process exit.
+
+Real ND2 data and Windows/WSL still require their own integration validation.
+Synthetic integration fixtures establish software behavior; representative
+experimental images still require mask and calibration quality control.
 
 ## Troubleshooting
 
@@ -565,8 +582,8 @@ test does not substitute for the complete Fiji check.
 | Input JSON / folder error | Save valid JSON; replace example paths with existing folders. In WSL use Linux paths such as `/mnt/d/...`, not `D:\...`. |
 | `NO_INPUT` | Put original `.lif` files directly in the listed folder. Export is not recursive. Files beginning with a dot are intentionally excluded. |
 | No verified `channel_N` export | Check stage 1 status, the channel number and file integrity. Re-export from original LIF if necessary. See the explicit legacy/partial options above. |
-| `UnboundLocalError` mentioning `major_version` at Fiji startup | Known issue in the pinned PyImageJ 1.8.0 startup path, reproduced in CI. It needs a software fix and a passing full Fiji check; changing image paths or thresholds will not resolve it. |
-| Other Java / Maven download errors | Check Java 11 and Maven in the active environment, then inspect `imagej.log` for the exact error. The first backend download needs network access to Maven repositories; institutional proxy/firewall settings may require local IT support. |
+| `UnboundLocalError` mentioning `major_version` at Fiji startup | Update from MCA 0.2.0, activate `mca_tools` and reinstall with `python -m pip install .`. Version 0.2.1 pins PyImageJ 1.5.0, scyjava 1.10.0 and jgo 1.0.4. Check `python -m pip show mca-tools pyimagej scyjava jgo` and restart the command in a fresh process. |
+| Other Java / Maven errors, including missing `JWlz` or a malformed JAR path | Check Java 11 and Maven 3.9.9 in the active environment; apply the Conda environment update above if Maven is 3.10. Then inspect `imagej.log` for the exact error. The first backend download needs network access to Maven repositories; institutional proxy/firewall settings may require local IT support. |
 | `MISSING_XY_CALIBRATION` or blank µm² fields | Check source metadata and re-export original LIF with the current exporter. Do not replace missing scale with an assumed value; pixel measurements remain available. |
 | `PARTIAL`, `FAILED` or interrupted run | Read `run.log` and per-input records in `run_status.json`. Check damaged inputs, available memory and writable disk space. Fix the cause before accepting the table. |
 | Projection looks black / mask looks unexpected | Inspect the raw projection in Fiji, its display range, selected channel and actual threshold bounds. Use the smoothed image only as a preview. |

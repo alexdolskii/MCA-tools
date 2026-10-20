@@ -1,16 +1,101 @@
 import json
+import os
+import subprocess
+import sys
 from contextlib import contextmanager
 from types import SimpleNamespace
 
 import numpy as np
+import pandas as pd
 import pytest
 import tifffile
 
 from mca_tools.calibration import Calibration
+from mca_tools.fiji_config import FIJI_ENDPOINT
 from mca_tools.lif_export import save_stack
 from mca_tools.run import Run
 
 pytestmark = pytest.mark.imagej
+
+
+def test_installed_commands_complete_with_full_fiji(
+    native_imagej, lif_factory, tmp_path
+):
+    """Exercise cold JVM startup, the real gateway and worker exit via CLI."""
+    if native_imagej is None:
+        pytest.skip("Full Fiji is required; offline ImageJ1 is insufficient")
+    import scyjava
+
+    # The offline ImageJ1 fixture cannot satisfy this Bio-Formats check.
+    assert scyjava.jimport("loci.formats.ImageReader") is not None
+    source = tmp_path / "source"
+    source.mkdir()
+    pixels = np.zeros((3, 5, 7), dtype=np.uint16)
+    pixels[:, 1:3, 2:5] = np.array([10, 20, 30], dtype=np.uint16)[
+        :, None, None
+    ]
+    lif_factory(source / "sample.lif", pixels)
+    (source / "._sample.lif").write_bytes(b"ignored metadata")
+    config = tmp_path / "input.json"
+    config.write_text(json.dumps({"paths_to_files": [str(source)]}))
+    env = {**os.environ, "MCA_RUNTIME_HOME": str(tmp_path / "runtime")}
+    env.pop("MCA_WORKER", None)
+
+    def run(command, *arguments):
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "mca_tools.cli",
+                command,
+                "-i",
+                str(config),
+                *arguments,
+            ],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        assert result.returncode == 0, result.stdout + result.stderr
+        return result
+
+    run("shg1_lif_to_tif")
+    export = next(source.glob("output_*"))
+    audit = json.loads((export / "run_status.json").read_text())
+    assert audit["status"] == "SUCCESS"
+    assert audit["counts"]["selected"] == 1
+    channel = export / "channel_1"
+    previous = set()
+    for method, expected_signal in (("max", 180), ("sum", 360)):
+        result = run(
+            "shg2_intden_assay",
+            "--projection",
+            method,
+            "--threshold",
+            "1",
+            "10000",
+            "--yes",
+        )
+        assert "IMAGEJ_READY" in result.stdout
+        outputs = set(channel.glob("Mask_Intensity_Area_Results_*"))
+        new_outputs = outputs - previous
+        assert len(new_outputs) == 1
+        output = new_outputs.pop()
+        previous = outputs
+        status = json.loads((output / "run_status.json").read_text())
+        assert status["status"] == "SUCCESS"
+        assert status["parameters"]["fiji_endpoint"] == FIJI_ENDPOINT
+        for library in ("pyimagej", "scyjava", "jgo", "imagej1", "java"):
+            assert status["software"][library] not in (None, "not installed")
+        table = pd.read_csv(output / "Tables" / "All_area_measurements.csv")
+        assert len(table) == 1
+        row = table.iloc[0]
+        assert row["Total_Area_px2"] == 6
+        assert row["Total_Area_um2"] == pytest.approx(0.75)
+        assert row["Integrated_Density_raw"] == expected_signal
+        assert row["Projection_Method"] == method.upper()
 
 
 def process(

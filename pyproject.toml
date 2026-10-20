@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mca-tools"
-version = "0.2.0"
+version = "0.2.1"
 description = "LIF export and SHG image analysis for the Multimodal Collagen Analysis Toolkit."
 readme = "README.md"
 requires-python = ">=3.12,<3.13"
@@ -13,9 +13,10 @@ license-files = ["LICENSE"]
 dependencies = [
     "numpy==2.2.6",
     "pandas==2.2.3",
-    "pyimagej==1.8.0",
+    "pyimagej==1.5.0",
     "readlif==0.6.6",
-    "scyjava==1.12.4",
+    "scyjava==1.10.0",
+    "jgo==1.0.4",
     "tifffile==2025.6.11",
     "psutil>=5.9,<8",
 ]
@@ -48,5 +49,8 @@ src = ["code"]
 select = ["E4", "E7", "E9", "F", "I"]
 
 [tool.pytest.ini_options]
+# JPype needs the JVM's fault handlers through interpreter shutdown.
+# Restoring pytest's Python handlers can segfault after all tests pass.
+addopts = "-p no:faulthandler"
 testpaths = ["tests"]
 markers = ["imagej: native ImageJ integration (set MCA_RUN_IMAGEJ_TESTS=1)"]
