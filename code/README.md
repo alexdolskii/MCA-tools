@@ -46,13 +46,18 @@ Implementations live in `mca_tools`; QuPath is a separate workflow.
 
 ## Development
 
-The Java bridge matches FIA `tech_dev` and UMA `UMA-tools-V2`: PyImageJ
-1.5.0, scyjava 1.10.0 and jgo 1.0.4, installed from `pyproject.toml`.
+The runtime matches FIA `tech_dev` and UMA `UMA-tools-V2`: Python 3.10,
+NumPy 1.26.4, PyImageJ 1.5.0, scyjava 1.10.0 and jgo 1.0.4.
+MCA uses UMA's pandas, Pillow and psutil ranges, plus readlif 0.6.5 and
+tifffile 2025.5.10 for LIF/TIFF support. The latter is the last tifffile
+release supporting Python 3.10; readlif 0.6.6 requires NumPy 2.
+Build requirements retain setuptools >=77
+for license metadata, with UMA's <81 upper bound.
 `fiji_config.py` is the only definition of `FIJI_ENDPOINT`. It registers the
 official OME Maven repository declared by Bio-Formats so that fresh installs
 can resolve legacy dependencies such as `woolz:JWlz:1.4.0`. It preserves
 caller-supplied JVM options and configures the owned temporary directory.
-Use the Conda-provided Java 11 and Maven 3.9.9. MCA retains its own Python 3.12
+Use the Conda-provided Java 11 and Maven 3.9.9. MCA retains its own Python 3.10
 environment; it does not import FIA or UMA.
 
 `environment.yaml` pins Maven 3.9.9 because Maven 3.10 introduced default

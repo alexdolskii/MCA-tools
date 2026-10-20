@@ -3,11 +3,20 @@ channels:
   - conda-forge
   - nodefaults
 dependencies:
-  - python=3.12
+  # Shared runtime baseline with UMA-tools-V2 and FIA tech_dev.
+  - python=3.10
   - pip
   - openjdk=11
   # jgo 1.0.4 parses Maven output; Maven 3.10 changed its warning format.
   - maven=3.9.9
+  - jpype1
+  - numpy=1.26.4
+  - pandas>=2.1,<3
+  - pillow>=10.1,<13
+  - psutil>=5.9,<8
+  # Match UMA's upper bound; >=77 supports this project's license metadata.
+  - setuptools>=77,<81
+  - wheel
 
 # Install the Python dependencies and terminal commands from the repository root:
-# python -m pip install .
+# conda run -n mca_tools python -m pip install .

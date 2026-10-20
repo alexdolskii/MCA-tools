@@ -8,11 +8,14 @@ SHG area and intensity in its own `mca_tools` environment. The independent
 [QuPath workflow](qupath_code/README.md) automates annotation export and
 colour-based area measurements in Herovici-stained brightfield images.
 
-**Version 0.2.1:** MCA now uses the same pinned Fiji bridge as FIA `tech_dev`
-and UMA `UMA-tools-V2`: PyImageJ 1.5.0, scyjava 1.10.0 and jgo 1.0.4, with
-Fiji 2.14.0 and Java 11. This replaces the PyImageJ 1.8.0 startup path that
-failed with `UnboundLocalError: major_version` in MCA 0.2.0. Fiji settings
-are centralized in [fiji_config.py](code/mca_tools/fiji_config.py).
+**Version 0.2.2:** MCA uses the same **Python 3.10, NumPy 1.26.4 and Fiji
+bridge** baseline as FIA `tech_dev` and UMA `UMA-tools-V2`, in its own
+`mca_tools` environment. Shared bridge versions are PyImageJ 1.5.0,
+scyjava 1.10.0 and jgo 1.0.4, with Fiji 2.14.0 and Java 11. MCA additionally
+requires readlif 0.6.5 and tifffile 2025.5.10 for LIF/TIFF processing:
+readlif 0.6.6 requires NumPy 2, and newer tifffile releases dropped Python
+3.10 support. Fiji settings remain
+centralized in [fiji_config.py](code/mca_tools/fiji_config.py).
 The configuration also registers Bio-Formats' official OME repository for
 fresh Maven downloads. MCA additionally pins **Maven 3.9.9**, because Maven
 3.10's dependency-filtering and warning changes break this older jgo bridge.
@@ -45,9 +48,10 @@ follow the QuPath instructions linked above; no Conda environment is needed.
 | Fiji desktop application, optional | Opens TIFF stacks, projections and masks for visual quality control |
 
 This guide uses **Visual Studio Code**, Microsoft's code editor. The larger
-Visual Studio IDE is not required. Conda installs Python 3.12, OpenJDK 11 and
-Maven 3.9.9 from [environment.yaml](environment.yaml); the subsequent pip command
-installs the Python dependencies declared in [pyproject.toml](pyproject.toml).
+Visual Studio IDE is not required. Conda installs Python 3.10, OpenJDK 11,
+Maven 3.9.9 and shared numerical libraries from
+[environment.yaml](environment.yaml); the subsequent pip command installs
+MCA and the remaining dependencies declared in [pyproject.toml](pyproject.toml).
 You do not need to install Python or Java separately, or install FIA-tools.
 
 Use a computer with enough memory for the largest native image stack and
@@ -108,14 +112,20 @@ However, we recommend using **Visual Studio Code (VS Code)** [link](https://code
 conda run -n base git clone --branch main --single-branch https://github.com/alexdolskii/MCA-tools.git
 cd MCA-tools
 conda env create -f environment.yaml
+conda run -n mca_tools python -m pip install .
 conda activate mca_tools
-python -m pip install .
 ```
 
 Accept Conda's installation confirmation when prompted. The final dot in
 `python -m pip install .` means “install this project”; run it in the folder
 containing `pyproject.toml`. Create the environment once. On later visits,
 activate the existing environment instead of creating it again.
+
+**Stop if environment creation fails.** `EnvironmentNameNotFound` means
+there is no usable `mca_tools` environment. The explicit `conda run -n
+mca_tools` installation command prevents accidentally installing MCA into
+`base`. Python 3.14 in `base` is not the analysis interpreter; MCA requires
+Python 3.10. For SSL errors, see [certificate troubleshooting](#conda-certificate-and-channel-errors).
 
 Check the installation:
 
@@ -129,20 +139,23 @@ shg1_lif_to_tif --help
 shg2_intden_assay --version
 ```
 
-Expected: Python **3.12.x** from a path containing `envs/mca_tools`, no broken
+Expected: Python **3.10.x** from a path containing `envs/mca_tools`, no broken
 pip requirements, Java **11**, Maven **3.9.9** and MCA command help
-or version **0.2.1**. These checks do not start Fiji. The SHG backend is pinned
+or version **0.2.2**. These checks do not start Fiji. The SHG backend is pinned
 to `sc.fiji:fiji:2.14.0` in
 [fiji_config.py](code/mca_tools/fiji_config.py) and uses the environment's
 Java. A separate desktop Fiji installation is only a viewer and does not
 replace this backend.
 
-The bridge dependency pins in `pyproject.toml` match
+The Python, NumPy and bridge baseline matches
 [FIA's environment](https://github.com/alexdolskii/FIA-tools/blob/tech_dev/environment.yaml)
 and [UMA's environment](https://github.com/alexdolskii/UMA-tools/blob/UMA-tools-V2/environment_uma.yaml).
-MCA retains its own Python 3.12 environment. Updating from MCA 0.2.0 requires
-updating that Conda environment and reinstalling the package after pulling
-the changes; use [the update commands](#7-later-sessions-and-software-updates).
+MCA also uses UMA's pandas `>=2.1,<3`, Pillow `>=10.1,<13` and psutil `>=5.9,<8`
+ranges. Only libraries used by MCA are included: FIA's neural-network models
+and UMA's orientation packages are not required for these two commands.
+MCA retains its own environment and does not import FIA or UMA.
+When upgrading an older Python 3.12 installation, create a fresh Python 3.10
+environment using [the update commands](#7-later-sessions-and-software-updates).
 Editing the Fiji endpoint alone does not update these dependencies.
 
 ## 2. Set up Visual Studio Code
@@ -159,7 +172,7 @@ Editing the Fiji endpoint alone does not update these dependencies.
    check that the VS Code window indicates a WSL connection.
 4. Open the Command Palette with **Cmd+Shift+P** on macOS or **Ctrl+Shift+P**
    on Windows/Linux. Run **Python: Select Interpreter**, then choose the
-   Python 3.12 interpreter named `mca_tools`. If it is missing, use the
+   Python 3.10 interpreter named `mca_tools`. If it is missing, use the
    executable path printed during the installation check. Microsoft's
    [environment guide](https://code.visualstudio.com/docs/python/environments)
    describes interpreter discovery.
@@ -233,8 +246,8 @@ the next stage reject them. Only timepoint 0 is exported; see
 
 ## 5. Run the SHG analysis
 
-Use MCA 0.2.1 or later with the dependencies installed from this checkout.
-If upgrading from 0.2.0, follow [the update instructions](#7-later-sessions-and-software-updates)
+Use MCA 0.2.2 with the dependencies installed from this checkout.
+If upgrading from 0.2.0 or 0.2.1, follow [the update instructions](#7-later-sessions-and-software-updates)
 before starting this stage.
 
 Confirm which exported channel contains the SHG signal; channel 1 is only
@@ -386,19 +399,35 @@ LIF export is unnecessary unless the source data or export software changed.
 Each analysis creates a new result directory. After finishing, you may run
 `conda deactivate`.
 
-To update the software, close active analyses, preserve your experiment JSON
-and results, and run from the project root:
+To update an existing **Python 3.10** MCA environment, close active analyses,
+preserve your experiment JSON and results, and run from the project root:
 
 ```bash
 conda run -n base git pull --ff-only
 conda env update -n mca_tools -f environment.yaml
+conda run -n mca_tools python -m pip install .
+conda run -n mca_tools python -m pip check
 conda activate mca_tools
-python -m pip install .
-python -m pip check
 ```
 
-The environment update installs Maven 3.9.9 when upgrading an existing MCA
-environment. Do not mix software versions within a comparison set
+**Upgrading from MCA 0.2.0/0.2.1 with Python 3.12:** create a fresh environment
+to avoid mixing packages built for different Python versions. These commands
+preserve the old environment for reproducibility:
+
+```bash
+conda run -n base git pull --ff-only
+conda env create -n mca_tools_py310 -f environment.yaml
+conda run -n mca_tools_py310 python -m pip install .
+conda run -n mca_tools_py310 python -m pip check
+conda activate mca_tools_py310
+python --version
+shg2_intden_assay --version
+```
+
+Select `mca_tools_py310` in VS Code and substitute that name for `mca_tools`
+in later commands. If the earlier environment was never created because
+installation failed, use the standard `mca_tools` creation instructions.
+Do not mix software versions within a comparison set
 without reprocessing or assessing the effect. Record the version and exact
 Git commit with `shg2_intden_assay --version` and
 `conda run -n base git rev-parse HEAD`. Archive the command, input JSON and run
@@ -547,10 +576,45 @@ experimental images still require mask and calibration quality control.
 
 ## Troubleshooting
 
+### Conda certificate and channel errors
+
+`CondaSSLError` with a self-signed certificate chain is a trust configuration
+problem, separate from the Python dependencies. With Conda 23.9 or later
+running under Python 3.10 or later in `base`, Conda can use the operating
+system's trusted certificate store:
+
+```bash
+CONDA_SSL_VERIFY=truststore conda env create -f environment.yaml
+```
+
+This keeps certificate verification enabled and works only when the required
+certificate is already trusted by the operating system. If it still fails,
+ask local IT for the institution's CA bundle and use its actual PEM path:
+`CONDA_SSL_VERIFY=/path/to/institution-ca-bundle.pem conda env create -f environment.yaml`.
+See [Conda's SSL settings](https://docs.conda.io/projects/conda/en/stable/user-guide/configuration/settings.html#ssl-verify).
+
+`nodefaults` in the YAML is a special exclusion marker, not a downloadable
+channel. If a Conda installation requests `/nodefaults/` or unwanted
+`repo.anaconda.com/pkgs/r` packages, inspect `conda config --show-sources`.
+For an environment that does not yet exist, this explicit bootstrap uses
+only conda-forge and then installs MCA's Python requirements from the checkout:
+
+```bash
+CONDA_SSL_VERIFY=truststore conda create -n mca_tools --override-channels -c https://conda.anaconda.org/conda-forge python=3.10 pip openjdk=11 maven=3.9.9
+conda run -n mca_tools python -m pip install .
+conda activate mca_tools
+python -m pip check
+```
+
+Use the IT-provided CA path instead of `truststore` if required. Run the pip
+command only after Conda succeeds. Changing channels does not itself repair
+certificate trust.
+
 | Symptom | What to check or do |
 |---|---|
 | `conda: command not found` | Reopen Terminal and VS Code after Miniforge installation. If shell initialization was skipped and the default location was used, run `~/miniforge3/bin/conda init zsh` on macOS, or `~/miniforge3/bin/conda init bash` for Bash on Linux/WSL, then reopen the terminal. Adapt the path/shell if different. |
-| Environment `mca_tools` already exists | Activate it. Do not repeat environment creation for every run. |
+| Environment `mca_tools` already exists | Check its Python version. Activate an existing Python 3.10 environment; use the fresh-environment migration above for Python 3.12. Do not repeat creation for every run. |
+| `EnvironmentNameNotFound` or package requires another Python | Environment creation failed, or the wrong interpreter is active. Resolve the Conda error first, then create the Python 3.10 environment and install with `conda run -n mca_tools python -m pip install .`. Do not install MCA into `base`. |
 | `shg1_lif_to_tif` or `shg2_intden_assay` not found | Run `conda activate mca_tools`, then `python -m pip install .` from the project root. Verify `sys.executable`. |
 | Python imports fail or VS Code uses another interpreter | Select `mca_tools` in VS Code and explicitly activate it in the terminal; run `python -m pip check`. |
 | Input JSON / folder error | Save valid JSON; replace example paths with existing folders. In WSL use Linux paths such as `/mnt/d/...`, not `D:\...`. |

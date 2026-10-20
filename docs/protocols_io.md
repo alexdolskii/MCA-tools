@@ -13,8 +13,11 @@ measurement definitions and validation status.
 
 ## Protocol status and version
 
-Documentation date: 20 October 2026. Software: MCA-tools 0.2.1; implementation
-examined at commit `823531cdfd49e663d637bb6f66e1560f4f2b9654`.
+Documentation date: 20 October 2026. Software: MCA-tools 0.2.2.
+This release aligns Python 3.10 and NumPy 1.26.4 with FIA `tech_dev` and UMA
+`UMA-tools-V2`, retaining a separate MCA environment. tifffile 2025.5.10
+is used because subsequent releases dropped Python 3.10 support; readlif
+0.6.5 is used because 0.6.6 requires NumPy 2.
 
 Version 0.2.1 replaces the PyImageJ 1.8.0 startup path that failed in 0.2.0
 with the same pinned Java bridge used by FIA `tech_dev` and UMA `UMA-tools-V2`.
@@ -27,8 +30,11 @@ Full-Fiji integration checks cover Linux and macOS, including export followed
 by MAX and SUM analysis through the installed commands, measurement checks
 and process termination. The test record is available in
 [GitHub Actions](https://github.com/alexdolskii/MCA-tools/actions/runs/39441858607).
-On the documentation date, all 26 Python tests and 8 full-Fiji tests passed
-on each system with normal process exit.
+That earlier run tested MCA 0.2.1 at commit
+`823531cdfd49e663d637bb6f66e1560f4f2b9654`: 26 Python tests and 8 full-Fiji
+tests passed on each system with normal process exit. For the Python 3.10
+release, consult the checks for the installed revision in
+[GitHub Actions](https://github.com/alexdolskii/MCA-tools/actions/workflows/python.yml).
 Record the exact version actually used when adapting this protocol. Software
 integration testing does not substitute for experimental image quality control.
 
@@ -69,9 +75,10 @@ image analysis; spatial calibration; Conda; MCA-tools.
 | CSV viewer | Excel, LibreOffice Calc or equivalent; VS Code can also show CSV text |
 | Input data | Original Leica `.lif` files, with acquisition metadata including pixel dimensions and the identity of the SHG channel |
 
-The environment file specifies Python 3.12, OpenJDK 11 and Maven 3.9.9. The
-examined package pins NumPy 2.2.6, pandas 2.2.3, PyImageJ 1.5.0, readlif
-0.6.6, scyjava 1.10.0, jgo 1.0.4 and tifffile 2025.6.11; psutil is also required.
+The environment file specifies Python 3.10, OpenJDK 11 and Maven 3.9.9. The
+package pins NumPy 1.26.4, PyImageJ 1.5.0, readlif 0.6.5, scyjava 1.10.0,
+jgo 1.0.4 and tifffile 2025.5.10. Shared UMA-compatible ranges are pandas
+>=2.1,<3, Pillow >=10.1,<13 and psutil >=5.9,<8.
 The Fiji endpoint is `sc.fiji:fiji:2.14.0`. Installation resolves dependencies
 from the repository files. MCA has its own environment and does not require
 FIA-tools. Native Windows, WSL and real ND2 inputs have not received complete
@@ -155,14 +162,23 @@ cd ~/projects
 conda run -n base git clone --branch main --single-branch https://github.com/alexdolskii/MCA-tools.git
 cd MCA-tools
 conda env create -f environment.yaml
+conda run -n mca_tools python -m pip install .
 conda activate mca_tools
-python -m pip install .
 ```
 
 Accept Conda's confirmation prompts. The final dot installs the project in
 the current directory. Create the environment once; activate it again for
 later sessions. Separate Python, Java and desktop Fiji installations are
 not required for package installation.
+
+Stop if environment creation fails. The explicit `conda run -n mca_tools`
+command prevents installation into `base` after a failed activation.
+For `CondaSSLError`, follow the README's
+[certificate and channel troubleshooting](https://github.com/alexdolskii/MCA-tools#conda-certificate-and-channel-errors).
+Conda can use `CONDA_SSL_VERIFY=truststore` when the institution's certificate
+is already trusted by the operating system (Conda >=23.9; base Python >=3.10).
+Otherwise obtain the institution's CA bundle from IT. Keep certificate
+verification enabled; dependency changes do not fix certificate trust.
 
 ### 4. Verify software installation and record the version
 
@@ -177,7 +193,7 @@ shg2_intden_assay --version
 conda run -n base git rev-parse HEAD
 ```
 
-Expect Python 3.12.x from `envs/mca_tools`, no broken pip requirements, Java
+Expect Python 3.10.x from `envs/mca_tools`, no broken pip requirements, Java
 11, Maven 3.9.9, and the MCA command help/version. Record the
 package version and commit hash. Optionally save the resolved installation
 for the experiment record:
@@ -188,19 +204,22 @@ python -m pip freeze > mca_python_packages_record.txt
 conda run -n base git rev-parse HEAD > mca_commit_record.txt
 ```
 
-These checks do not start Fiji. Use MCA 0.2.1 or later with the dependencies
-declared by that checkout. When upgrading from 0.2.0, run these commands in
-the project root:
+These checks do not start Fiji. Use MCA 0.2.2 with the dependencies declared
+by that checkout. When upgrading from the Python 3.12 environment of MCA
+0.2.0/0.2.1, create a fresh environment and preserve the old one:
 
 ```bash
 conda run -n base git pull --ff-only
-conda env update -n mca_tools -f environment.yaml
-conda activate mca_tools
-python -m pip install .
-python -m pip check
+conda env create -n mca_tools_py310 -f environment.yaml
+conda run -n mca_tools_py310 python -m pip install .
+conda run -n mca_tools_py310 python -m pip check
+conda activate mca_tools_py310
 ```
 
-Changing the endpoint alone does not update Maven or the Python bridge.
+Use `mca_tools_py310` in subsequent commands and VS Code after this migration.
+If the earlier environment was never created, use the standard `mca_tools`
+installation instead. Changing the endpoint alone does not update Python,
+Maven or the Python bridge.
 Review the full Fiji test record for the
 installed revision, then confirm the complete workflow on representative data.
 
@@ -476,6 +495,8 @@ the affected data.
 | Problem | Action |
 |---|---|
 | Conda is not found | Reopen the terminal after installation. If initialization was skipped, use `~/miniforge3/bin/conda init zsh` on macOS or `~/miniforge3/bin/conda init bash` for Bash on Linux/WSL, then reopen; adapt the path/shell if needed. |
+| Conda SSL certificate error | Use the OS trust store if the institutional certificate is already trusted, or the CA bundle supplied by IT; see the README certificate troubleshooting. Resolve this before continuing installation. |
+| Environment missing or Python 3.14 rejected | Environment creation failed or `base` is still active. Create MCA's Python 3.10 environment successfully, then install using `conda run -n mca_tools python -m pip install .`. |
 | MCA command is not found | Activate `mca_tools`; install with `python -m pip install .` in the project root; check the interpreter path. |
 | Invalid JSON or missing folder | Save valid JSON and replace example paths. Use paths visible inside the active operating system, including `/mnt/d/...` in WSL. |
 | No input images | Place LIFs directly in the listed folder. Hidden `._*` files are intentionally ignored. |
@@ -495,7 +516,7 @@ mean that analysis completed successfully.
 ## References and software resources
 
 - [MCA-tools repository and current README](https://github.com/alexdolskii/MCA-tools)
-- [MCA-tools implementation examined for this protocol](https://github.com/alexdolskii/MCA-tools/tree/823531cdfd49e663d637bb6f66e1560f4f2b9654)
+- [Earlier MCA 0.2.1 integration baseline](https://github.com/alexdolskii/MCA-tools/tree/823531cdfd49e663d637bb6f66e1560f4f2b9654)
 - [Miniforge installation documentation](https://github.com/conda-forge/miniforge)
 - [Visual Studio Code Python environments](https://code.visualstudio.com/docs/python/environments)
 - [Microsoft WSL installation](https://learn.microsoft.com/en-us/windows/wsl/install)
