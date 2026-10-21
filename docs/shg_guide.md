@@ -28,12 +28,10 @@ single-channel images from other microscope systems.
 | MCA-tools | Installs the two analysis commands and their Python dependencies |
 | Fiji desktop application, optional | Opens TIFF stacks, projections and masks for visual quality control |
 
-This guide uses **Visual Studio Code**, Microsoft's code editor. The larger
-Visual Studio IDE is not required. Conda installs Python 3.10, OpenJDK 11,
+This guide uses **Visual Studio Code**, Microsoft's code editor. Conda installs Python 3.10, OpenJDK 11,
 Maven 3.9.9 and shared numerical libraries from
 [environment.yaml](../environment.yaml); the subsequent pip command installs
 MCA and the remaining dependencies declared in [pyproject.toml](../pyproject.toml).
-You do not need to install Python or Java separately, or install FIA-tools.
 
 Use a computer with enough memory for the largest native image stack and
 several working image copies. Storage requirements depend on the dataset:
@@ -48,9 +46,7 @@ Run each command one line at a time and wait for it to finish. Text such as
 ### Windows preparation: use Ubuntu under WSL 2
 
 For Windows, the recommended route is WSL 2 with Ubuntu, followed by the Linux
-instructions below. Native Windows and WSL have not been validated for the
-complete MCA workflow; this is an installation route, not a platform validation
-claim.
+instructions below.
 
 1. Follow Microsoft's [WSL installation guide](https://learn.microsoft.com/en-us/windows/wsl/install).
    On a supported Windows 10/11 computer, open **PowerShell as Administrator**
@@ -75,36 +71,8 @@ the drive is mounted and writable before using this path.
 
 ### Install Miniforge and Git
 
-Download the installer for your operating system and processor from the
-[official Miniforge releases](https://github.com/conda-forge/miniforge/releases/latest).
-On macOS/Linux, `uname -m` reports the processor architecture.
-
-| Computer | Installer |
-|---|---|
-| Apple Silicon Mac | `Miniforge3-MacOSX-arm64.sh` |
-| Intel Mac | `Miniforge3-MacOSX-x86_64.sh` |
-| Intel/AMD Linux or Ubuntu in WSL | `Miniforge3-Linux-x86_64.sh` |
-| ARM Linux or Ubuntu in WSL | `Miniforge3-Linux-aarch64.sh` |
-
-For example, after downloading the Apple Silicon installer to Downloads:
-
-```bash
-bash ~/Downloads/Miniforge3-MacOSX-arm64.sh
-```
-
-Substitute your downloaded installer path on another system. Inside WSL,
-use the Linux installer; a Windows browser download may be under
-`/mnt/c/Users/YourWindowsName/Downloads/`. Quote paths containing spaces.
-Follow the installer prompts and accept shell initialization. Close and
-reopen the terminal, then verify Conda and install Git:
-
-```bash
-conda --version
-conda install -n base -c conda-forge git
-conda run -n base git --version
-mkdir -p ~/projects
-cd ~/projects
-```
+For Miniforge installation check a [link](https://www.anaconda.com/docs/getting-started/installation). Specifically Miniconda, Command-line installer 
+For Git installation check a [link](https://git-scm.com/install/)
 
 Experienced users can manage the project entirely in a terminal using `cd`,
 `ls`, `mkdir` and a text editor. We recommend Visual Studio Code for organizing
@@ -279,8 +247,7 @@ Export creates numbered folders for all channels; it does not identify SHG
 or transmitted-light channels automatically. Select SHG from acquisition records.
 Keep its adjacent `.tif.json`, the `Metadata` directory and `run_status.json`
 together with the TIFFs. Renaming or editing audited export files can make
-the next stage reject them. Only timepoint 0 is exported; see
-[metadata](#native-pixels-and-metadata) before using time series.
+the next stage reject them. Only timepoint 0 is exported.
 
 ## 5. Run the SHG analysis
 
@@ -313,9 +280,9 @@ a setting. Automatic thresholds can differ between images. There is no
 universal manual threshold for all microscopes or acquisition settings.
 
 Invalid answers repeat the question. Enter `q` at a prompt or press Ctrl+C
-to cancel. Fiji runs **headlessly**: no analysis GUI should appear. Its first
+to cancel. Fiji runs **headlessly**: no analysis GUI should appear. **Its first
 initialization downloads Maven components and can take longer than later
-runs. A completed run returns the terminal prompt and records a final status.
+runs**. A completed run returns the terminal prompt and records a final status.
 
 For repeatable, noninteractive use, specify all choices and `--yes`:
 
