@@ -255,6 +255,3 @@ Software sources:
 [ImageJ1](https://imagej.net/ij/),
 [Apache Groovy](https://groovy-lang.org/).
 External libraries retain their own licenses and attribution requirements.
-
-For a standalone procedure ready to adapt for protocols.io, see
-[the QuPath/Herovici protocol](../docs/protocols_io_qupath_herovici.md).
